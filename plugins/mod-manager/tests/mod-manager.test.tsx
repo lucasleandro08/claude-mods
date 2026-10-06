@@ -10,13 +10,19 @@ type World = {
   pluginDirs?: string
   state?: Record<string, boolean>
   writes?: string[]
+  known?: string
+  installed?: string
 }
 
 function world(on: On, w: World) {
   let file = w.state ? JSON.stringify({ enabled: w.state }) : ''
   on('settings.read', () => ({ value: { enabledPlugins: w.enabledPlugins ?? {} } }))
   on('env.get', ($, e) => ({ value: e.name === 'HOME' ? '/home/dev' : e.name === 'CLAUDE_CODE_PLUGIN_DIRS' ? w.pluginDirs : undefined }))
-  on('fs.read', () => (file === '' ? { deny: 'missing' } : { value: file }))
+  on('fs.read', ($, e) => {
+    if (e.path.endsWith('known_marketplaces.json')) return w.known ? { value: w.known } : { deny: 'missing' }
+    if (e.path.endsWith('installed_plugins.json')) return w.installed ? { value: w.installed } : { deny: 'missing' }
+    return file === '' ? { deny: 'missing' } : { value: file }
+  })
   on('fs.write', ($, e) => {
     file = e.text
     w.writes?.push(`${e.path} ${e.text}`)
@@ -167,4 +173,27 @@ describe('mod-manager', () => {
     const band = await $.ui.mount({ plugin: 'mod-manager', surface: 'desktop', component: 'AbovePrompt', props: BAND })
     expect(await band.find({ type: 'Button' })).toBeUndefined()
   })
+
+  test('follows the name the marketplace was added under', async ($, on) => {
+    const calls: string[] = []
+    world(on, {
+      known: JSON.stringify({
+        'claude-mods': { source: { source: 'github', repo: 'lucasleandro08/claude-mods' } },
+        other: { source: { source: 'github', repo: 'someone/else' } },
+      }),
+      installed: JSON.stringify({ version: 2, plugins: { 'kube-pane@claude-mods': [{ scope: 'user' }], 'guardrails@other': [{}] } }),
+    })
+    on('process.run', ($, e) => {
+      calls.push(e.argv.join(' '))
+      return out(0, '{"outcome":"installed"}')
+    })
+    await $.command.run(OPEN)
+
+    const pane = await $.ui.mount({ plugin: 'mod-manager', surface: 'desktop', component: 'Pane', requestId: 'mod-manager', props: PANE })
+    expect(await pane.find({ type: 'Button', key: 'toggle-kube-pane' })).toBeDefined()
+    expect(await pane.find({ type: 'Button', key: 'install-guardrails' })).toBeDefined()
+    await pane.press({ key: 'install-pr-pane' })
+    expect(calls).toEqual(['claude plugin install pr-pane@claude-mods --scope user --json'])
+  })
 })
+

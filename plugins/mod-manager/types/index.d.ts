@@ -5,6 +5,6 @@ export type Notices = Record<string, Notice>
 
 declare module 'claude-code' {
   interface PluginState {
-    'mod-manager': { mods: ModEntry[]; lastError: string; installing: string[]; notices: Notices }
+    'mod-manager': { mods: ModEntry[]; lastError: string; installing: string[]; notices: Notices; marketplace: string }
   }
 }

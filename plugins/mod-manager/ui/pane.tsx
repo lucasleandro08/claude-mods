@@ -8,6 +8,7 @@ type Ui = Elements[RenderSurface]
 export type ModsPaneProps = {
   ui: Ui
   mods: ModEntry[]
+  version: string
   error: string
   installing: string[]
   notices: Notices
@@ -16,7 +17,7 @@ export type ModsPaneProps = {
   onInstallAll: (names: string[]) => unknown
 }
 
-export function ModsPane({ ui, mods, error, installing, notices, onToggle, onInstall, onInstallAll }: ModsPaneProps) {
+export function ModsPane({ ui, mods, version, error, installing, notices, onToggle, onInstall, onInstallAll }: ModsPaneProps) {
   const { Box, Text, Button } = ui
   const on = mods.filter(m => m.state === 'on').length
   const missing = mods.filter(m => m.state === 'missing' && !installing.includes(m.name)).map(m => m.name)
@@ -25,7 +26,7 @@ export function ModsPane({ ui, mods, error, installing, notices, onToggle, onIns
     <Box flexDirection="column" backgroundColor={DRACULA.background} paddingX={1} paddingY={1}>
       <Box flexDirection="row" gap={1} alignItems="center">
         <Text color={DRACULA.purple} bold>⚙ Mods</Text>
-        <Text color={DRACULA.comment}>{on} of {mods.length} on</Text>
+        <Text color={DRACULA.comment}>{on} of {mods.length} on · v{version}</Text>
         <Box flexGrow={1} />
         {missing.length > 0 && installing.length === 0 && (
           <Button key="install-all" label={`Install all (${missing.length})`} dimColor onPress={() => onInstallAll(missing)} />

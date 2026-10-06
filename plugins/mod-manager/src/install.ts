@@ -3,8 +3,8 @@ import { MARKETPLACE } from './shared/toggle'
 
 const CLAUDE_DIRS = ['.local/bin', '.claude/local', 'bin']
 
-export function pluginId(name: string) {
-  return `${name}@${MARKETPLACE}`
+export function pluginId(name: string, marketplace = MARKETPLACE) {
+  return `${name}@${marketplace}`
 }
 
 export function claudeCandidates(home: string | undefined, override: string) {
@@ -12,8 +12,8 @@ export function claudeCandidates(home: string | undefined, override: string) {
   return [override, 'claude', ...homeBins, '/opt/homebrew/bin/claude', '/usr/local/bin/claude'].filter(bin => bin !== '')
 }
 
-export function installArgs(name: string) {
-  return ['plugin', 'install', pluginId(name), '--scope', 'user', '--json']
+export function installArgs(name: string, marketplace = MARKETPLACE) {
+  return ['plugin', 'install', pluginId(name, marketplace), '--scope', 'user', '--json']
 }
 
 type InstallJson = { outcome?: string; message?: string }

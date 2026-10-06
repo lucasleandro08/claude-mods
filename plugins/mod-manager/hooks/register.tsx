@@ -4,17 +4,19 @@ import type { EngineInterface, Register } from 'claude-code'
 import type { ModEntry, Notice } from '../types'
 import { entries, installCommand, readInstalled } from '../src/catalog'
 import { claudeCandidates, installArgs, readInstallResult } from '../src/install'
-import { parseState, serializeState, statePath, withToggle } from '../src/shared/toggle'
+import { MARKETPLACE, parseState, serializeState, statePath, withToggle } from '../src/shared/toggle'
 import { ModsChip } from '../ui/chip'
 import { ModsPane } from '../ui/pane'
 
 const PANE_ID = 'mod-manager'
+const VERSION = '2.1.0'
 const REFRESH_MS = 10_000
 
 const mods = atom({ plugin: 'mod-manager', key: 'mods' } as const, [] as ModEntry[])
 const lastError = atom({ plugin: 'mod-manager', key: 'lastError' } as const, '')
 const installing = atom({ plugin: 'mod-manager', key: 'installing' } as const, [])
 const notices = atom({ plugin: 'mod-manager', key: 'notices' } as const, {})
+const marketplace = atom({ plugin: 'mod-manager', key: 'marketplace' } as const, MARKETPLACE)
 
 async function stateFile($: EngineInterface) {
   return statePath(await $.env.get('HOME').catch(() => undefined))
@@ -27,7 +29,12 @@ async function readState($: EngineInterface) {
 async function refreshMods($: EngineInterface) {
   const settings = await $.settings.read().catch(() => ({}))
   const envDirs = await $.env.get('CLAUDE_CODE_PLUGIN_DIRS').catch(() => undefined)
-  const next = entries(readInstalled(settings, envDirs), await readState($))
+  const home = await $.env.get('HOME').catch(() => undefined)
+  const known = await $.fs.read(`${home ?? ''}/.claude/plugins/known_marketplaces.json`).catch(() => '')
+  const installedJson = await $.fs.read(`${home ?? ''}/.claude/plugins/installed_plugins.json`).catch(() => '')
+  const installed = readInstalled(settings, envDirs, known, installedJson)
+  await update($, marketplace, prev => (prev === installed.marketplaces[0] ? prev : (installed.marketplaces[0] ?? MARKETPLACE)))
+  const next = entries(installed, await readState($))
   await update($, mods, prev => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next))
   return next
 }
@@ -50,7 +57,7 @@ async function toggle($: EngineInterface, mod: ModEntry) {
 async function runInstall($: EngineInterface, claudePath: string, name: string) {
   for (const bin of claudeCandidates(await $.env.get('HOME').catch(() => undefined), claudePath)) {
     try {
-      const ran = await $.process.run([bin, ...installArgs(name)], { timeoutMs: 120_000 })
+      const ran = await $.process.run([bin, ...installArgs(name, await read($, marketplace))], { timeoutMs: 120_000 })
       return readInstallResult(ran.exitCode, ran.stdout, ran.stderr)
     } catch {
       continue
@@ -68,12 +75,13 @@ async function install($: EngineInterface, claudePath: string, name: string) {
       await setNotice($, name, result)
       return result.tone === 'ok'
     }
-    const filled = await $.prompt.fill({ text: installCommand(name), mode: 'replace' })
+    const command = installCommand(name, await read($, marketplace))
+    const filled = await $.prompt.fill({ text: command, mode: 'replace' })
     await setNotice($, name, {
       tone: 'info',
       text: filled.isFilled
         ? 'claude CLI not found: the install command is in your prompt, press Enter.'
-        : `claude CLI not found: run ${installCommand(name)} or set its path in /config.`,
+        : `claude CLI not found: run ${command} or set its path in /config.`,
     })
     return false
   } finally {
@@ -113,7 +121,12 @@ export const register: Register = (on, options) => {
   on('command.run', { command: 'mods' }, async ($, e) => {
     if (e.args.trim() === 'status') {
       const list = await refreshMods($)
-      return { text: list.map(m => `${m.state.padEnd(8)} ${m.name}`).join('\n') }
+      return {
+        text: [
+          `mod-manager ${VERSION}, marketplace "${await read($, marketplace)}"`,
+          ...list.map(m => `${m.state.padEnd(8)} ${m.name}`),
+        ].join('\n'),
+      }
     }
     await openPane($)
     return { text: 'Mods pane opened.' }
@@ -137,6 +150,7 @@ export const register: Register = (on, options) => {
     <ModsPane
       ui={$.ui.resolve(e)}
       mods={await read($, mods)}
+      version={VERSION}
       error={await read($, lastError)}
       installing={await read($, installing)}
       notices={await read($, notices)}
