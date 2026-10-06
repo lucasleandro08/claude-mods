@@ -3,13 +3,30 @@
   "displayName": "Kube Pane",
   "version": "1.0.0",
   "description": "A kubectl context chip above the prompt and a Dracula-themed pods pane: switch context for Claude's session without touching your kubeconfig, filter pods, and open a shell in any container from the app's Terminal.",
-  "author": { "name": "Lucas Leandro", "url": "https://github.com/lucasleandro08" },
+  "author": {
+    "name": "Lucas Leandro",
+    "url": "https://github.com/lucasleandro08"
+  },
   "homepage": "https://github.com/lucasleandro08/claude-mods",
   "repository": "https://github.com/lucasleandro08/claude-mods",
   "license": "MIT",
   "types": "./types/index.d.ts",
-  "keywords": ["claude-code", "claude-mod", "kubernetes", "kubectl", "pods", "pane", "dracula"],
+  "keywords": [
+    "claude-code",
+    "claude-mod",
+    "kubernetes",
+    "kubectl",
+    "pods",
+    "pane",
+    "dracula"
+  ],
   "userConfig": {
+    "enabled": {
+      "type": "boolean",
+      "title": "Enabled",
+      "description": "Turn this mod on. Off by default; toggle it here or in the Mods pane (/mods).",
+      "default": false
+    },
     "productionPattern": {
       "type": "string",
       "title": "Production context pattern",

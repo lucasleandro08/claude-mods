@@ -29,6 +29,8 @@ async function record($: EngineInterface, hunk: Hunk, maxEdits: number) {
 }
 
 export const register: Register = (on, options) => {
+  if (options.enabled !== true) return
+
   const contextLines = Number(options.contextLines ?? 2)
   const maxEdits = Number(options.maxEdits ?? 100)
 

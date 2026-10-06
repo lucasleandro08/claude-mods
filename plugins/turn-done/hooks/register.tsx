@@ -3,6 +3,8 @@ import type { Register } from 'claude-code'
 import { formatElapsed } from '../src/format'
 
 export const register: Register = (on, options) => {
+  if (options.enabled !== true) return
+
   const thresholdMs = Math.max(1, Number(options.thresholdSeconds ?? 60)) * 1000
   const playSound = options.playSound !== false
 

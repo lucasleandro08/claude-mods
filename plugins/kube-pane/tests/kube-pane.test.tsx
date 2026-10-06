@@ -1,6 +1,8 @@
 import type { On } from 'claude-code'
 import { describe, expect, test } from 'claude-code/testing'
 
+const ON = { enabled: true }
+
 const SURFACES = ['terminal', 'desktop'] as const
 const PANE = { title: 'Pods', isFocused: false, bodyColumns: 100, placement: 'dock' as const, scroll: { offset: 0, bodyRows: 40 }, view: {} }
 const BAND = { hasSurvey: false, isWorking: false, maxRows: 4, bodyColumns: 80, scroll: { offset: 0, bodyRows: 4 }, view: {} }
@@ -43,7 +45,7 @@ function setup(on: On, calls: string[], isPlaced = true) {
 
 describe('kube-pane', () => {
   for (const surface of SURFACES) {
-    test(`lists pods of the default namespace, unhealthy first, on ${surface}`, async ($, on) => {
+    test(`lists pods of the default namespace, unhealthy first, on ${surface}`, { options: ON }, async ($, on) => {
       const calls: string[] = []
       setup(on, calls)
       await $.command.run({ command: 'pods', args: '' } as never)
@@ -55,7 +57,7 @@ describe('kube-pane', () => {
       expect(await pane.find({ text: /page 1\/2/ })).toBeDefined()
     })
 
-    test(`context chip is red on production and keeps the band beneath on ${surface}`, async ($, on) => {
+    test(`context chip is red on production and keeps the band beneath on ${surface}`, { options: ON }, async ($, on) => {
       setup(on, [], false)
       on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
         const { Text } = $.ui.resolve(e)
@@ -70,7 +72,7 @@ describe('kube-pane', () => {
     })
   }
 
-  test('switching context rewrites Claude kubectl commands and never touches the kubeconfig', async ($, on) => {
+  test('switching context rewrites Claude kubectl commands and never touches the kubeconfig', { options: ON }, async ($, on) => {
     const calls: string[] = []
     const ran: string[] = []
     setup(on, calls)
@@ -90,7 +92,7 @@ describe('kube-pane', () => {
     expect(calls.some(c => c.includes('use-context'))).toBe(false)
   })
 
-  test('pages, filters and opens a shell in the chosen container', async ($, on) => {
+  test('pages, filters and opens a shell in the chosen container', { options: ON }, async ($, on) => {
     const terminal: string[] = []
     setup(on, [])
     on('tool.call', { tool: 'mcp__terminal__run_in_terminal' }, ($, e) => {
@@ -115,7 +117,7 @@ describe('kube-pane', () => {
   })
 
   for (const [label, answer, opens] of [['opens on confirm', 'Open shell', true], ['stays closed on cancel', 'Cancel', false]] as const) {
-    test(`production shell ${label}`, async ($, on) => {
+    test(`production shell ${label}`, { options: ON }, async ($, on) => {
       const terminal: string[] = []
       setup(on, [])
       on('tool.call', { tool: 'AskUserQuestion' }, ($, e) => {
@@ -133,10 +135,20 @@ describe('kube-pane', () => {
     })
   }
 
-  test('default namespace is configurable', { options: { defaultNamespace: 'app' } }, async ($, on) => {
+  test('default namespace is configurable', { options: { ...ON, defaultNamespace: 'app' } }, async ($, on) => {
     const calls: string[] = []
     setup(on, calls)
     await $.command.run({ command: 'pods', args: '' } as never)
     expect(calls).toContain(`--context ${PROD} -n app get pods -o json`)
   })
+})
+
+test('does nothing while disabled', async ($, on) => {
+  on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>beneath</Text>
+  })
+  const band = await $.ui.mount({ plugin: 'kube-pane', surface: 'desktop', component: 'AbovePrompt', props: { hasSurvey: false, isWorking: false, maxRows: 4, bodyColumns: 80, scroll: { offset: 0, bodyRows: 4 }, view: {} } })
+  expect((await band.findAll({ type: 'Button' })).length).toBe(0)
+  expect((await band.findAll({})).length).toBe(1)
 })

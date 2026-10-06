@@ -1,7 +1,9 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
+const ON = { enabled: true }
+
 describe('/codex-loop', () => {
-  test('submits the loop prompt for a PR url', async ($, on) => {
+  test('submits the loop prompt for a PR url', { options: ON }, async ($, on) => {
     const sent: string[] = []
     on('prompt.submit', ($, e) => {
       sent.push(e.text)
@@ -15,7 +17,7 @@ describe('/codex-loop', () => {
     expect(sent[0]).toContain('content="-1"')
   })
 
-  test('shows usage for a bad argument and submits nothing', async ($, on) => {
+  test('shows usage for a bad argument and submits nothing', { options: ON }, async ($, on) => {
     const sent: string[] = []
     on('prompt.submit', ($, e) => {
       sent.push(e.text)
@@ -25,4 +27,15 @@ describe('/codex-loop', () => {
     expect(JSON.stringify(res)).toContain('Usage')
     expect(sent).toHaveLength(0)
   })
+})
+
+test('registers no command while disabled', async ($, on) => {
+  const registered: string[] = []
+  on('command.register', ($, e) => {
+    registered.push(JSON.stringify(e))
+    return { value: undefined } as never
+  })
+  on('session.start', () => ({}) as never)
+  await $.session.start({ source: 'startup' } as never).catch(() => undefined)
+  expect(registered).toHaveLength(0)
 })

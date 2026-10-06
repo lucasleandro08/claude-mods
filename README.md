@@ -10,15 +10,16 @@ In Claude Code (terminal or the desktop app's Code tab):
 
 ```
 /plugin marketplace add lucasleandro08/claude-mods
-/plugin install live-diff@claude-mods
+/plugin install mod-manager@claude-mods
 ```
 
-Repeat `/plugin install <name>@claude-mods` for each mod below. Every option is in `/config` after installing.
+Then install the mods you want with `/plugin install <name>@claude-mods`. **Every mod ships turned off**: open `/mods` (or click the `⚙ Mods` chip above the prompt) and turn on the ones you use. Each mod's other options are in `/config`.
 
 ## Mods
 
 | Mod | What it does | Commands |
 | --- | --- | --- |
+| **mod-manager** | The only mod on by default: a pane that lists every mod with an on/off switch, flags the ones not installed yet with their install command, and a `⚙ Mods · n/8` chip above the prompt. | `/mods` |
 | **live-diff** | A pane with the diff of every `Edit` and `Write` Claude makes: file navigator with `M`/`A` status, `+/-` counts, line numbers and red/green rows. A `Δ Diff` chip above the prompt reopens it. | `/diff`, `/diff-clear` |
 | **kube-pane** | A `⎈ context` chip above the prompt (red on production) and a pods pane: context and namespace pickers, filter, pages, unhealthy pods first, and a `⌘ Shell` button that opens `kubectl exec` in the app's Terminal, with a container picker for multi-container pods. Switching context only affects Claude's session: your kubeconfig is never written. | `/pods` |
 | **pr-pane** | Your open pull requests grouped by repo, with CI status, the Codex review state and whether each PR already reached your integration branch. A `⑂ PRs` chip flags failing CI and Codex findings. Needs the [GitHub CLI](https://cli.github.com). | `/prs` |
@@ -30,8 +31,11 @@ Repeat `/plugin install <name>@claude-mods` for each mod below. Every option is 
 
 ### Options
 
+Every mod below also has an **Enabled** option, off by default, which is what the Mods pane switches.
+
 | Mod | Option | Default |
 | --- | --- | --- |
+| mod-manager | Show the Mods chip | on |
 | kube-pane | Production context pattern · default namespace · refresh interval · pods per page · kubectl path | `prod` · `default` · 15 s · 25 · PATH |
 | pr-pane | Integration branch · Codex bot login · refresh interval · PRs to load · gh path | `staging` · `chatgpt-codex-connector[bot]` · 5 min · 50 · PATH |
 | guardrails | Production pattern · confirm production writes · block kubeconfig changes · block printing secrets · protect Docker ports | `prod` · on · on · on · on |
@@ -45,7 +49,7 @@ The chips above the prompt compose with each other and with other mods' bands: e
 
 ## Rolling out to a whole organization
 
-Admins can register the marketplace and enable mods for everyone through managed settings (`extraKnownMarketplaces` and `enabledPlugins`). See [Plugins for organizations](https://code.claude.com/docs/en/plugins/org.md) and [Mods for admins](https://code.claude.com/docs/en/plugins/mods/admin.md).
+Admins can register the marketplace and install mods for everyone through managed settings (`extraKnownMarketplaces` and `enabledPlugins`); people then turn on what they use in `/mods`. See [Plugins for organizations](https://code.claude.com/docs/en/plugins/org.md) and [Mods for admins](https://code.claude.com/docs/en/plugins/mods/admin.md).
 
 ## Development
 
@@ -81,4 +85,4 @@ Two rules of the hooks runtime shape this layout: `$` can only be passed to func
 
 ---
 
-🇧🇷 **Em português:** mods para o Claude Code com tema Dracula. Instale com `/plugin marketplace add lucasleandro08/claude-mods` e depois `/plugin install <mod>@claude-mods`; as opções ficam em `/config`.
+🇧🇷 **Em português:** mods para o Claude Code com tema Dracula. Instale com `/plugin marketplace add lucasleandro08/claude-mods` e `/plugin install mod-manager@claude-mods`, instale os mods que quiser e ligue cada um em `/mods` (todos vêm desligados); as demais opções ficam em `/config`.

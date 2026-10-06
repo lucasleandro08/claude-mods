@@ -49,6 +49,8 @@ async function confirmProduction($: EngineInterface, context: string, command: s
 }
 
 export const register: Register = (on, options) => {
+  if (options.enabled !== true) return
+
   const production = new RegExp(String(options.productionPattern ?? 'prod'), 'i')
 
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {

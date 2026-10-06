@@ -5,6 +5,8 @@ import { loopPrompt, parseTarget } from '../src/prompt'
 const USAGE = 'Usage: /codex-loop <PR url | owner/repo#123 | 123>'
 
 export const register: Register = (on, options) => {
+  if (options.enabled !== true) return
+
   const bot = String(options.codexBotLogin ?? 'chatgpt-codex-connector[bot]')
 
   on('session.start', async ($, e, next) => {

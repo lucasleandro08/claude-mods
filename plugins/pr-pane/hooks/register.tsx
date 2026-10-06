@@ -106,6 +106,8 @@ async function openPane($: EngineInterface, settings: Settings) {
 }
 
 export const register: Register = (on, options) => {
+  if (options.enabled !== true) return
+
   const settings = readSettings(options)
 
   on('session.start', async ($, e, next) => {

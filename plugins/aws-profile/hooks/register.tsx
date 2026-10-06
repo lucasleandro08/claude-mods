@@ -13,6 +13,8 @@ async function refresh($: EngineInterface) {
 }
 
 export const register: Register = (on, options) => {
+  if (options.enabled !== true) return
+
   const production = new RegExp(String(options.productionPattern ?? 'prod'), 'i')
 
   on('session.start', async ($, e, next) => {

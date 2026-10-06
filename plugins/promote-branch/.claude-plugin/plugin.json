@@ -3,12 +3,28 @@
   "displayName": "Promote Branch",
   "version": "1.0.0",
   "description": "/promote previews merging the current branch into an integration branch (staging, homolog, develop); /promote go does a full merge in a temporary worktree and pushes it, never touching your checkout.",
-  "author": { "name": "Lucas Leandro", "url": "https://github.com/lucasleandro08" },
+  "author": {
+    "name": "Lucas Leandro",
+    "url": "https://github.com/lucasleandro08"
+  },
   "homepage": "https://github.com/lucasleandro08/claude-mods",
   "repository": "https://github.com/lucasleandro08/claude-mods",
   "license": "MIT",
-  "keywords": ["claude-code", "claude-mod", "git", "merge", "staging", "deploy"],
+  "keywords": [
+    "claude-code",
+    "claude-mod",
+    "git",
+    "merge",
+    "staging",
+    "deploy"
+  ],
   "userConfig": {
+    "enabled": {
+      "type": "boolean",
+      "title": "Enabled",
+      "description": "Turn this mod on. Off by default; toggle it here or in the Mods pane (/mods).",
+      "default": false
+    },
     "targetBranch": {
       "type": "string",
       "title": "Target branch",

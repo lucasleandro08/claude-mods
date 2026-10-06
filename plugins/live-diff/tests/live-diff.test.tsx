@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 
+const ON = { enabled: true }
+
 const SURFACES = ['terminal', 'desktop'] as const
 
 const PANE = {
@@ -22,7 +24,7 @@ const BAND = {
 
 describe('live-diff', () => {
   for (const surface of SURFACES) {
-    test(`shows an Edit as removed and added lines on ${surface}`, async ($, on) => {
+    test(`shows an Edit as removed and added lines on ${surface}`, { options: ON }, async ($, on) => {
       on('tool.call', { tool: 'Edit' }, () => ({ result: {} as never }))
 
       await $.tool.call({
@@ -43,7 +45,7 @@ describe('live-diff', () => {
       expect(await ui.find({ text: /No edits yet/ })).toBeDefined()
     })
 
-    test(`ignores a denied Edit on ${surface}`, async ($, on) => {
+    test(`ignores a denied Edit on ${surface}`, { options: ON }, async ($, on) => {
       on('tool.call', { tool: 'Edit' }, () => ({ deny: 'no' }))
 
       await $.tool.call({ tool: 'Edit', file_path: '/repo/x.ts', old_string: 'a', new_string: 'b' })
@@ -56,7 +58,7 @@ describe('live-diff', () => {
 
 describe('file navigation', () => {
   for (const surface of SURFACES) {
-    test(`picking a file shows only its edits on ${surface}`, async ($, on) => {
+    test(`picking a file shows only its edits on ${surface}`, { options: ON }, async ($, on) => {
       on('tool.call', { tool: 'Edit' }, () => ({ result: {} as never }))
       await $.tool.call({ tool: 'Edit', file_path: '/repo/a.ts', old_string: 'alpha', new_string: 'ALPHA' })
       await $.tool.call({ tool: 'Edit', file_path: '/repo/b.ts', old_string: 'beta', new_string: 'BETA' })
@@ -77,7 +79,7 @@ describe('file navigation', () => {
 
 describe('reopen button', () => {
   for (const surface of SURFACES) {
-    test(`keeps the band beneath and adds Diff on ${surface}`, async ($, on) => {
+    test(`keeps the band beneath and adds Diff on ${surface}`, { options: ON }, async ($, on) => {
       on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
         const { Text } = $.ui.resolve(e)
         return <Text>usage band</Text>
@@ -94,7 +96,7 @@ describe('reopen button', () => {
 
 describe('diff chip', () => {
   for (const surface of SURFACES) {
-    test(`stays visible with no edits on ${surface}`, async ($, on) => {
+    test(`stays visible with no edits on ${surface}`, { options: ON }, async ($, on) => {
       on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
         const { Text } = $.ui.resolve(e)
         return <Text>beneath</Text>
@@ -107,7 +109,7 @@ describe('diff chip', () => {
 })
 
 describe('large sessions', () => {
-  test('caps the lines drawn and points to the file view', async ($, on) => {
+  test('caps the lines drawn and points to the file view', { options: ON }, async ($, on) => {
     on('tool.call', { tool: 'Write' }, () => ({ result: {} as never }))
     on('fs.read', () => ({ deny: 'missing' }))
     const big = Array.from({ length: 300 }, (_, i) => `line ${i}`).join('\n')
@@ -122,3 +124,12 @@ describe('large sessions', () => {
   })
 })
 
+test('does nothing while disabled', async ($, on) => {
+  on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>beneath</Text>
+  })
+  const band = await $.ui.mount({ plugin: 'live-diff', surface: 'desktop', component: 'AbovePrompt', props: { hasSurvey: false, isWorking: false, maxRows: 4, bodyColumns: 80, scroll: { offset: 0, bodyRows: 4 }, view: {} } })
+  expect((await band.findAll({ type: 'Button' })).length).toBe(0)
+  expect((await band.findAll({})).length).toBe(1)
+})

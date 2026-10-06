@@ -7,6 +7,14 @@
   "description": "Dracula-themed Claude Code mods: a live diff pane, a Kubernetes pods pane, a PR dashboard, guardrails for risky shell commands and small workflow helpers.",
   "plugins": [
     {
+      "name": "mod-manager",
+      "source": "./plugins/mod-manager",
+      "description": "A Dracula-themed pane to turn the claude-mods on and off. Every other mod ships disabled; this one is on and lists them all.",
+      "version": "1.0.0",
+      "homepage": "https://github.com/lucasleandro08/claude-mods",
+      "repository": "https://github.com/lucasleandro08/claude-mods"
+    },
+    {
       "name": "live-diff",
       "source": "./plugins/live-diff",
       "description": "A Dracula-themed pane with the diff of every Edit and Write Claude makes in the session, a file navigator and line numbers.",

@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 
+const ON = { enabled: true }
+
 const SURFACES = ['terminal', 'desktop'] as const
 const PANE = { title: 'PRs', isFocused: false, bodyColumns: 80, placement: 'dock' as const, scroll: { offset: 0, bodyRows: 40 }, view: {} }
 const BAND = { hasSurvey: false, isWorking: false, maxRows: 4, bodyColumns: 80, scroll: { offset: 0, bodyRows: 4 }, view: {} }
@@ -26,7 +28,7 @@ function fakeGh(argv: readonly string[]) {
 
 describe('pr-pane', () => {
   for (const surface of SURFACES) {
-    test(`lists PRs with CI, Codex and integration branch on ${surface}`, async ($, on) => {
+    test(`lists PRs with CI, Codex and integration branch on ${surface}`, { options: ON }, async ($, on) => {
       on('process.run', ($, e) => fakeGh(e.argv))
       on('env.get', () => ({ value: undefined }))
       on('ui.open', () => ({ value: { isPlaced: true } }))
@@ -41,7 +43,7 @@ describe('pr-pane', () => {
       expect(await pane.find({ text: '✓ staging' })).toBeDefined()
     })
 
-    test(`band chip flags failing CI and keeps the band beneath on ${surface}`, async ($, on) => {
+    test(`band chip flags failing CI and keeps the band beneath on ${surface}`, { options: ON }, async ($, on) => {
       on('process.run', ($, e) => fakeGh(e.argv))
       on('env.get', () => ({ value: undefined }))
       on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
@@ -59,4 +61,14 @@ describe('pr-pane', () => {
       expect(await band.find({ text: 'beneath' })).toBeDefined()
     })
   }
+})
+
+test('does nothing while disabled', async ($, on) => {
+  on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>beneath</Text>
+  })
+  const band = await $.ui.mount({ plugin: 'pr-pane', surface: 'desktop', component: 'AbovePrompt', props: { hasSurvey: false, isWorking: false, maxRows: 4, bodyColumns: 80, scroll: { offset: 0, bodyRows: 4 }, view: {} } })
+  expect((await band.findAll({ type: 'Button' })).length).toBe(0)
+  expect((await band.findAll({})).length).toBe(1)
 })

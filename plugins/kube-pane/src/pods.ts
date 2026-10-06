@@ -18,9 +18,39 @@ export function shortContext(name: string) {
   return name.replace(/^arn:aws:eks:[^:]+:\d+:cluster\//, '')
 }
 
+const COMMAND_POSITION = /((?:^|[|;&(`]|\$\()\s*(?:\w+=\S*\s+)*(?:(?:sudo|watch|time|exec)\s+(?:-\S+\s+)*)?)kubectl\b/g
+
+function isQuoted(text: string, index: number) {
+  let single = false
+  let double = false
+  for (let i = 0; i < index; i++) {
+    const ch = text[i]
+    if (ch === '\\') i++
+    else if (ch === "'" && !double) single = !single
+    else if (ch === '"' && !single) double = !double
+  }
+  return single || double
+}
+
+// Only rewrites kubectl in command position, outside quotes and before a heredoc body
 export function withContext(command: string, context: string) {
-  if (context === '' || !/\bkubectl\b/.test(command)) return command
-  return command.replace(/\bkubectl\b(?![^|;&]*--context)/g, `kubectl --context '${context}'`)
+  if (context === '' || !command.includes('kubectl')) return command
+
+  const lines = command.split('\n')
+  const heredoc = lines.findIndex(line => line.includes('<<'))
+  const last = heredoc < 0 ? lines.length - 1 : heredoc
+
+  return lines
+    .map((line, n) => {
+      if (n > last) return line
+      return line.replace(COMMAND_POSITION, (match, prefix: string, offset: number) => {
+        const at = offset + prefix.length
+        const segment = line.slice(at).split(/[|;&]/)[0] ?? ''
+        if (isQuoted(line, at) || segment.includes('--context')) return match
+        return `${prefix}kubectl --context '${context}'`
+      })
+    })
+    .join('\n')
 }
 
 export function shellCommand(context: string, namespace: string, pod: string, container?: string) {

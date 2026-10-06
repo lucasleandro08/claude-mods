@@ -3,13 +3,31 @@
   "displayName": "PR Pane",
   "version": "1.0.0",
   "description": "Your open pull requests in a Dracula-themed pane: CI, Codex review and whether each one already reached your integration branch, plus a chip above the prompt that flags failing CI.",
-  "author": { "name": "Lucas Leandro", "url": "https://github.com/lucasleandro08" },
+  "author": {
+    "name": "Lucas Leandro",
+    "url": "https://github.com/lucasleandro08"
+  },
   "homepage": "https://github.com/lucasleandro08/claude-mods",
   "repository": "https://github.com/lucasleandro08/claude-mods",
   "license": "MIT",
   "types": "./types/index.d.ts",
-  "keywords": ["claude-code", "claude-mod", "github", "pull-requests", "ci", "codex", "pane", "dracula"],
+  "keywords": [
+    "claude-code",
+    "claude-mod",
+    "github",
+    "pull-requests",
+    "ci",
+    "codex",
+    "pane",
+    "dracula"
+  ],
   "userConfig": {
+    "enabled": {
+      "type": "boolean",
+      "title": "Enabled",
+      "description": "Turn this mod on. Off by default; toggle it here or in the Mods pane (/mods).",
+      "default": false
+    },
     "integrationBranch": {
       "type": "string",
       "title": "Integration branch",
