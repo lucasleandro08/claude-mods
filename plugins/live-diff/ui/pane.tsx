@@ -7,7 +7,7 @@ import { DRACULA } from '../src/shared/theme'
 
 type Ui = Elements[RenderSurface]
 
-const MAX_LINES_PER_HUNK = 80
+const LINE_BUDGET = { all: 120, file: 400 } as const
 const ROW_TINT = { add: '#2b3b33', del: '#3d2b33' } as const
 
 export type DiffPaneProps = {
@@ -24,7 +24,7 @@ export function DiffPane({ ui, width, hunks, selected, onPick, onClear }: DiffPa
   const files = summarizeFiles(hunks)
   const root = commonDir(files.map(f => f.path))
   const current = selected !== null && files.some(f => f.path === selected) ? selected : null
-  const shown = current === null ? files : files.filter(f => f.path === current)
+  const shown = budgetLines(current === null ? files : files.filter(f => f.path === current), LINE_BUDGET[current === null ? 'all' : 'file'])
   const rule = <Text color={DRACULA.currentLine}>{'─'.repeat(Math.max(20, width - 2))}</Text>
 
   return (
@@ -62,7 +62,14 @@ export function DiffPane({ ui, width, hunks, selected, onPick, onClear }: DiffPa
         </Box>
       )}
 
-      {shown.map(file => <FileDiff ui={ui} file={file} root={root} />)}
+      {shown.files.map(file => <FileDiff ui={ui} file={file} root={root} />)}
+      {shown.hiddenLines > 0 && (
+        <Box marginTop={1}>
+          <Text color={DRACULA.comment} italic>
+            ⋯ {shown.hiddenLines} more lines{current === null ? '; pick a file above to see its whole diff' : ''}
+          </Text>
+        </Box>
+      )}
     </Box>
   )
 }
@@ -120,7 +127,39 @@ function FileRow({ ui, file, root, isCurrent, onPick }: FileRowProps) {
   )
 }
 
-function FileDiff({ ui, file, root }: { ui: Ui; file: FileSummary; root: string }) {
+export function PaneError({ ui, message }: { ui: Ui; message: string }) {
+  const { Box, Text } = ui
+  return (
+    <Box padding={1}>
+      <Text color={DRACULA.red}>Diff pane failed to draw: {message}</Text>
+    </Box>
+  )
+}
+
+type ShownHunk = { hunk: Hunk; lines: DiffLine[]; hidden: number }
+type ShownFile = FileSummary & { shown: ShownHunk[] }
+
+function budgetLines(files: readonly FileSummary[], budget: number) {
+  let left = budget
+  let hiddenLines = 0
+  const shownFiles: ShownFile[] = []
+
+  for (const file of files) {
+    const shown: ShownHunk[] = []
+    for (const hunk of file.hunks) {
+      const take = Math.max(0, Math.min(left, hunk.lines.length))
+      left -= take
+      if (take > 0) shown.push({ hunk, lines: hunk.lines.slice(0, take), hidden: hunk.lines.length - take })
+      else hiddenLines += hunk.lines.length
+    }
+    if (shown.length > 0) shownFiles.push({ ...file, shown })
+  }
+
+  hiddenLines += shownFiles.reduce((sum, f) => sum + f.shown.reduce((s, h) => s + h.hidden, 0), 0)
+  return { files: shownFiles, hiddenLines }
+}
+
+function FileDiff({ ui, file, root }: { ui: Ui; file: ShownFile; root: string }) {
   const { Box, Text } = ui
   const { dir, name } = splitPath(file.path.slice(root.length))
 
@@ -136,15 +175,14 @@ function FileDiff({ ui, file, root }: { ui: Ui; file: FileSummary; root: string 
         </Box>
         <Counts ui={ui} added={file.added} removed={file.removed} />
       </Box>
-      {file.hunks.map(hunk => <HunkView ui={ui} hunk={hunk} />)}
+      {file.shown.map(part => <HunkView ui={ui} part={part} />)}
     </Box>
   )
 }
 
-function HunkView({ ui, hunk }: { ui: Ui; hunk: Hunk }) {
+function HunkView({ ui, part }: { ui: Ui; part: ShownHunk }) {
   const { Box, Text } = ui
-  const shown = hunk.lines.slice(0, MAX_LINES_PER_HUNK)
-  const hidden = hunk.lines.length - shown.length
+  const { hunk, lines: shown, hidden } = part
   const oldStart = hunk.lines.find(l => l.oldNo !== undefined)?.oldNo
   const newStart = hunk.lines.find(l => l.newNo !== undefined)?.newNo
   const range = oldStart !== undefined && newStart !== undefined ? `@@ -${oldStart} +${newStart} @@ ` : '@@ '

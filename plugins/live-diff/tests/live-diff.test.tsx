@@ -105,3 +105,20 @@ describe('diff chip', () => {
     })
   }
 })
+
+describe('large sessions', () => {
+  test('caps the lines drawn and points to the file view', async ($, on) => {
+    on('tool.call', { tool: 'Write' }, () => ({ result: {} as never }))
+    on('fs.read', () => ({ deny: 'missing' }))
+    const big = Array.from({ length: 300 }, (_, i) => `line ${i}`).join('\n')
+    for (let i = 0; i < 13; i++) await $.tool.call({ tool: 'Write', file_path: `/repo/file-${i}.ts`, content: big })
+
+    const pane = await $.ui.mount({ plugin: 'live-diff', surface: 'desktop', component: 'Pane', requestId: 'live-diff', props: PANE })
+    expect((await pane.findAll({})).length < 1500).toBe(true)
+    expect(await pane.find({ text: /more lines; pick a file/ })).toBeDefined()
+
+    await pane.press({ key: 'pick-/repo/file-3.ts' })
+    expect(await pane.find({ text: 'line 299' })).toBeDefined()
+  })
+})
+

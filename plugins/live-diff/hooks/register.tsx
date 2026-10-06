@@ -4,7 +4,7 @@ import type { EngineInterface, Register } from 'claude-code'
 import type { Hunk } from '../types'
 import { diffLines, hasChanges, lineOf } from '../src/diff'
 import { DiffChip } from '../ui/chip'
-import { DiffPane } from '../ui/pane'
+import { DiffPane, PaneError } from '../ui/pane'
 
 const PANE_ID = 'live-diff'
 
@@ -94,14 +94,23 @@ export const register: Register = (on, options) => {
     )
   })
 
-  on('ui.render', { component: 'Pane', requestId: PANE_ID }, async ($, e) => (
-    <DiffPane
-      ui={$.ui.resolve(e)}
-      width={e.props.bodyColumns}
-      hunks={await read($, hunks)}
-      selected={await read($, selected)}
-      onPick={path => update($, selected, () => path)}
-      onClear={() => update($, hunks, () => [])}
-    />
-  ))
+  on('ui.render', { component: 'Pane', requestId: PANE_ID }, async ($, e) => {
+    const ui = $.ui.resolve(e)
+    try {
+      return (
+        <DiffPane
+          ui={ui}
+          width={e.props.bodyColumns}
+          hunks={await read($, hunks)}
+          selected={await read($, selected)}
+          onPick={path => update($, selected, () => path)}
+          onClear={() => update($, hunks, () => [])}
+        />
+      )
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      $.ui.log(`live-diff render failed: ${message}`)
+      return <PaneError ui={ui} message={message} />
+    }
+  })
 }
