@@ -40,7 +40,8 @@ describe('mod-manager', () => {
       expect(await pane.find({ type: 'Button', key: 'toggle-kube-pane' })).toBeDefined()
       expect(await pane.find({ type: 'Button', key: 'toggle-guardrails' })).toBeUndefined()
       expect(await pane.find({ text: 'managed' })).toBeDefined()
-      expect(await pane.find({ text: /\/plugin install pr-pane@claude-mods/ })).toBeDefined()
+      expect(await pane.find({ type: 'Button', key: 'install-pr-pane' })).toBeDefined()
+      expect(await pane.find({ type: 'Button', key: 'install-all' })).toBeDefined()
     })
 
     test(`chip counts mods on and keeps the band beneath on ${surface}`, async ($, on) => {
@@ -81,4 +82,72 @@ describe('mod-manager', () => {
     const band = await $.ui.mount({ plugin: 'mod-manager', surface: 'desktop', component: 'AbovePrompt', props: BAND })
     expect(await band.find({ type: 'Button' })).toBeUndefined()
   })
+
+  const out = (exitCode: number, stdout: string, stderr = '') => ({ value: { exitCode, stdout, stderr, isStdoutTruncated: false, isStderrTruncated: false } })
+
+  test('Install runs the claude CLI for that mod and reports success', async ($, on) => {
+    const store = settings([])
+    const calls: string[] = []
+    on('config.list', () => store.list())
+    on('env.get', () => ({ value: '/home/dev' }))
+    on('process.run', ($, e) => {
+      calls.push(e.argv.join(' '))
+      return out(0, '{"command":"install","outcome":"installed","plugin":"kube-pane@claude-mods"}')
+    })
+
+    const pane = await $.ui.mount({ plugin: 'mod-manager', surface: 'desktop', component: 'Pane', requestId: 'mod-manager', props: PANE })
+    await pane.press({ key: 'install-kube-pane' })
+    expect(calls).toEqual(['claude plugin install kube-pane@claude-mods --scope user --json'])
+    expect(await pane.find({ text: /Installed\. Turn it on/ })).toBeDefined()
+  })
+
+  test('Install shows the CLI error', async ($, on) => {
+    on('config.list', () => settings([]).list())
+    on('env.get', () => ({ value: undefined }))
+    on('process.run', () => out(1, '{"outcome":"failed","message":"Marketplace \\"claude-mods\\" not found"}', 'boom'))
+
+    const pane = await $.ui.mount({ plugin: 'mod-manager', surface: 'desktop', component: 'Pane', requestId: 'mod-manager', props: PANE })
+    await pane.press({ key: 'install-pr-pane' })
+    expect(await pane.find({ text: /Install failed: Marketplace "claude-mods" not found/ })).toBeDefined()
+  })
+
+  test('without the CLI the install command goes to the prompt', async ($, on) => {
+    const filled: string[] = []
+    on('config.list', () => settings([]).list())
+    on('env.get', () => ({ value: undefined }))
+    on('process.run', () => {
+      throw new Error('ENOENT')
+    })
+    on('prompt.fill', ($, e) => {
+      filled.push(e.text)
+      return { isFilled: true } as never
+    })
+
+    const pane = await $.ui.mount({ plugin: 'mod-manager', surface: 'desktop', component: 'Pane', requestId: 'mod-manager', props: PANE })
+    await pane.press({ key: 'install-guardrails' })
+    expect(filled).toEqual(['/plugin install guardrails@claude-mods'])
+    expect(await pane.find({ text: /press Enter/ })).toBeDefined()
+  })
+
+  test('Install all installs every missing mod in order', async ($, on) => {
+    const installed: string[] = []
+    on('config.list', () => settings([row('live-diff', true), row('kube-pane', false)]).list())
+    on('env.get', () => ({ value: undefined }))
+    on('process.run', ($, e) => {
+      installed.push(String(e.argv[3]))
+      return out(0, '{"outcome":"installed"}')
+    })
+
+    const pane = await $.ui.mount({ plugin: 'mod-manager', surface: 'desktop', component: 'Pane', requestId: 'mod-manager', props: PANE })
+    await pane.press({ key: 'install-all' })
+    expect(installed).toEqual([
+      'pr-pane@claude-mods',
+      'guardrails@claude-mods',
+      'promote-branch@claude-mods',
+      'codex-loop@claude-mods',
+      'turn-done@claude-mods',
+      'aws-profile@claude-mods',
+    ])
+  })
 })
+

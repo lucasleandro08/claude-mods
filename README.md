@@ -13,13 +13,13 @@ In Claude Code (terminal or the desktop app's Code tab):
 /plugin install mod-manager@claude-mods
 ```
 
-Then install the mods you want with `/plugin install <name>@claude-mods`. **Every mod ships turned off**: open `/mods` (or click the `⚙ Mods` chip above the prompt) and turn on the ones you use. Each mod's other options are in `/config`.
+Then open `/mods` (or click the `⚙ Mods` chip above the prompt): install the mods you want from there (**Install** or **Install all**) and turn them on. **Every mod ships turned off.** Each mod's other options are in `/config`.
 
 ## Mods
 
 | Mod | What it does | Commands |
 | --- | --- | --- |
-| **mod-manager** | The only mod on by default: a pane that lists every mod with an on/off switch, flags the ones not installed yet with their install command, and a `⚙ Mods · n/8` chip above the prompt. | `/mods` |
+| **mod-manager** | The only mod on by default: a pane that lists every mod with an on/off switch and an **Install** button for the ones not installed yet (it runs `claude plugin install`, or puts the `/plugin install` command in your prompt when the CLI is not found), plus a `⚙ Mods · n/8` chip above the prompt. | `/mods` |
 | **live-diff** | A pane with the diff of every `Edit` and `Write` Claude makes: file navigator with `M`/`A` status, `+/-` counts, line numbers and red/green rows. A `Δ Diff` chip above the prompt reopens it. | `/diff`, `/diff-clear` |
 | **kube-pane** | A `⎈ context` chip above the prompt (red on production) and a pods pane: context and namespace pickers, filter, pages, unhealthy pods first, and a `⌘ Shell` button that opens `kubectl exec` in the app's Terminal, with a container picker for multi-container pods. Switching context only affects Claude's session: your kubeconfig is never written. | `/pods` |
 | **pr-pane** | Your open pull requests grouped by repo, with CI status, the Codex review state and whether each PR already reached your integration branch. A `⑂ PRs` chip flags failing CI and Codex findings. Needs the [GitHub CLI](https://cli.github.com). | `/prs` |
@@ -35,7 +35,7 @@ Every mod below also has an **Enabled** option, off by default, which is what th
 
 | Mod | Option | Default |
 | --- | --- | --- |
-| mod-manager | Show the Mods chip | on |
+| mod-manager | Show the Mods chip · claude CLI path | on · PATH |
 | kube-pane | Production context pattern · default namespace · refresh interval · pods per page · kubectl path | `prod` · `default` · 15 s · 25 · PATH |
 | pr-pane | Integration branch · Codex bot login · refresh interval · PRs to load · gh path | `staging` · `chatgpt-codex-connector[bot]` · 5 min · 50 · PATH |
 | guardrails | Production pattern · confirm production writes · block kubeconfig changes · block printing secrets · protect Docker ports | `prod` · on · on · on · on |

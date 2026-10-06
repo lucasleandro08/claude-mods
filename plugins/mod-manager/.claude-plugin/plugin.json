@@ -2,19 +2,34 @@
   "name": "mod-manager",
   "displayName": "Mod Manager",
   "version": "1.0.0",
-  "description": "A Dracula-themed pane to turn the claude-mods on and off. Every other mod ships disabled; this one is on and lists them all.",
-  "author": { "name": "Lucas Leandro", "url": "https://github.com/lucasleandro08" },
+  "description": "A Dracula-themed pane to install the claude-mods and turn them on and off. Every other mod ships disabled; this one is on and lists them all.",
+  "author": {
+    "name": "Lucas Leandro",
+    "url": "https://github.com/lucasleandro08"
+  },
   "homepage": "https://github.com/lucasleandro08/claude-mods",
   "repository": "https://github.com/lucasleandro08/claude-mods",
   "license": "MIT",
   "types": "./types/index.d.ts",
-  "keywords": ["claude-code", "claude-mod", "settings", "pane", "dracula"],
+  "keywords": [
+    "claude-code",
+    "claude-mod",
+    "settings",
+    "pane",
+    "dracula"
+  ],
   "userConfig": {
     "showChip": {
       "type": "boolean",
       "title": "Show the Mods chip",
       "description": "Show the ⚙ Mods chip above the prompt. /mods opens the pane either way.",
       "default": true
+    },
+    "claudePath": {
+      "type": "string",
+      "title": "claude path",
+      "description": "Full path to the claude CLI, used by the Install buttons when it is not on the PATH Claude Code sees.",
+      "default": ""
     }
   }
 }

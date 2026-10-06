@@ -9,7 +9,7 @@
     {
       "name": "mod-manager",
       "source": "./plugins/mod-manager",
-      "description": "A Dracula-themed pane to turn the claude-mods on and off. Every other mod ships disabled; this one is on and lists them all.",
+      "description": "A Dracula-themed pane to install the claude-mods and turn them on and off. Every other mod ships disabled; this one is on and lists them all.",
       "version": "1.0.0",
       "homepage": "https://github.com/lucasleandro08/claude-mods",
       "repository": "https://github.com/lucasleandro08/claude-mods"
