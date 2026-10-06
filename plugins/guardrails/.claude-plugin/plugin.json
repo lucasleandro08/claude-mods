@@ -1,0 +1,43 @@
+{
+  "name": "guardrails",
+  "displayName": "Guardrails",
+  "version": "1.0.0",
+  "description": "Stops risky shell commands before they run: killing ports owned by Docker containers, printing secrets from the environment, rewriting your kubeconfig, and asks before kubectl writes on production contexts.",
+  "author": { "name": "Lucas Leandro", "url": "https://github.com/lucasleandro08" },
+  "homepage": "https://github.com/lucasleandro08/claude-mods",
+  "repository": "https://github.com/lucasleandro08/claude-mods",
+  "license": "MIT",
+  "keywords": ["claude-code", "claude-mod", "safety", "kubectl", "docker", "secrets"],
+  "userConfig": {
+    "productionPattern": {
+      "type": "string",
+      "title": "Production context pattern",
+      "description": "Regular expression that marks a kubectl context as production (case-insensitive).",
+      "default": "prod"
+    },
+    "confirmProductionWrites": {
+      "type": "boolean",
+      "title": "Confirm kubectl writes on production",
+      "description": "Ask before delete, scale, rollout, apply, patch, edit and exec into a Rails console on production contexts.",
+      "default": true
+    },
+    "blockKubeconfigChanges": {
+      "type": "boolean",
+      "title": "Block kubeconfig changes",
+      "description": "Block commands that rewrite the kubeconfig (EKS update-kubeconfig, kubectl config use-context / set-context / delete-context).",
+      "default": true
+    },
+    "blockSecretPrinting": {
+      "type": "boolean",
+      "title": "Block printing secrets",
+      "description": "Block env, printenv and echo of variables whose names look like secrets.",
+      "default": true
+    },
+    "protectDockerPorts": {
+      "type": "boolean",
+      "title": "Protect Docker ports",
+      "description": "Block kill/pkill on ports published by running Docker containers, and killing the Docker engine.",
+      "default": true
+    }
+  }
+}

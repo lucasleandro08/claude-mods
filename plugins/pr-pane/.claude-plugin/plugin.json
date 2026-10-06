@@ -1,0 +1,44 @@
+{
+  "name": "pr-pane",
+  "displayName": "PR Pane",
+  "version": "1.0.0",
+  "description": "Your open pull requests in a Dracula-themed pane: CI, Codex review and whether each one already reached your integration branch, plus a chip above the prompt that flags failing CI.",
+  "author": { "name": "Lucas Leandro", "url": "https://github.com/lucasleandro08" },
+  "homepage": "https://github.com/lucasleandro08/claude-mods",
+  "repository": "https://github.com/lucasleandro08/claude-mods",
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "keywords": ["claude-code", "claude-mod", "github", "pull-requests", "ci", "codex", "pane", "dracula"],
+  "userConfig": {
+    "integrationBranch": {
+      "type": "string",
+      "title": "Integration branch",
+      "description": "Branch the pane checks each PR against (staging, homolog, develop). Empty hides the column.",
+      "default": "staging"
+    },
+    "codexBotLogin": {
+      "type": "string",
+      "title": "Codex bot login",
+      "description": "GitHub login of the Codex review bot.",
+      "default": "chatgpt-codex-connector[bot]"
+    },
+    "refreshMinutes": {
+      "type": "number",
+      "title": "Refresh interval (minutes)",
+      "description": "How often the PR list reloads.",
+      "default": 5
+    },
+    "limit": {
+      "type": "number",
+      "title": "PRs to load",
+      "description": "Maximum open PRs fetched.",
+      "default": 50
+    },
+    "ghPath": {
+      "type": "string",
+      "title": "gh path",
+      "description": "Full path to the GitHub CLI when it is not on the PATH Claude Code sees.",
+      "default": ""
+    }
+  }
+}

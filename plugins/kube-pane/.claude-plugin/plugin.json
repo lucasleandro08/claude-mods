@@ -1,0 +1,44 @@
+{
+  "name": "kube-pane",
+  "displayName": "Kube Pane",
+  "version": "1.0.0",
+  "description": "A kubectl context chip above the prompt and a Dracula-themed pods pane: switch context for Claude's session without touching your kubeconfig, filter pods, and open a shell in any container from the app's Terminal.",
+  "author": { "name": "Lucas Leandro", "url": "https://github.com/lucasleandro08" },
+  "homepage": "https://github.com/lucasleandro08/claude-mods",
+  "repository": "https://github.com/lucasleandro08/claude-mods",
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "keywords": ["claude-code", "claude-mod", "kubernetes", "kubectl", "pods", "pane", "dracula"],
+  "userConfig": {
+    "productionPattern": {
+      "type": "string",
+      "title": "Production context pattern",
+      "description": "Regular expression that marks a context as production (case-insensitive): red chip and a confirmation before opening a shell.",
+      "default": "prod"
+    },
+    "defaultNamespace": {
+      "type": "string",
+      "title": "Default namespace",
+      "description": "Namespace the pane opens on when the cluster has it.",
+      "default": "default"
+    },
+    "refreshSeconds": {
+      "type": "number",
+      "title": "Refresh interval (seconds)",
+      "description": "How often the open pane reloads the pods.",
+      "default": 15
+    },
+    "pageSize": {
+      "type": "number",
+      "title": "Pods per page",
+      "description": "Rows per page in the pods table.",
+      "default": 25
+    },
+    "kubectlPath": {
+      "type": "string",
+      "title": "kubectl path",
+      "description": "Full path to kubectl when it is not on the PATH Claude Code sees.",
+      "default": ""
+    }
+  }
+}

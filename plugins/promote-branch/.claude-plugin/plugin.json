@@ -1,0 +1,25 @@
+{
+  "name": "promote-branch",
+  "displayName": "Promote Branch",
+  "version": "1.0.0",
+  "description": "/promote previews merging the current branch into an integration branch (staging, homolog, develop); /promote go does a full merge in a temporary worktree and pushes it, never touching your checkout.",
+  "author": { "name": "Lucas Leandro", "url": "https://github.com/lucasleandro08" },
+  "homepage": "https://github.com/lucasleandro08/claude-mods",
+  "repository": "https://github.com/lucasleandro08/claude-mods",
+  "license": "MIT",
+  "keywords": ["claude-code", "claude-mod", "git", "merge", "staging", "deploy"],
+  "userConfig": {
+    "targetBranch": {
+      "type": "string",
+      "title": "Target branch",
+      "description": "Branch /promote merges into and pushes.",
+      "default": "staging"
+    },
+    "protectedBranches": {
+      "type": "string",
+      "title": "Branches you cannot promote from",
+      "description": "Comma-separated branches /promote refuses to run on (the target is always included).",
+      "default": "main,master"
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "name": "live-diff",
+  "displayName": "Live Diff",
+  "version": "1.0.0",
+  "description": "A Dracula-themed pane with the diff of every Edit and Write Claude makes in the session, a file navigator and line numbers.",
+  "author": { "name": "Lucas Leandro", "url": "https://github.com/lucasleandro08" },
+  "homepage": "https://github.com/lucasleandro08/claude-mods",
+  "repository": "https://github.com/lucasleandro08/claude-mods",
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "keywords": ["claude-code", "claude-mod", "diff", "pane", "dracula"],
+  "userConfig": {
+    "contextLines": {
+      "type": "number",
+      "title": "Context lines",
+      "description": "Unchanged lines shown around each change.",
+      "default": 2
+    },
+    "maxEdits": {
+      "type": "number",
+      "title": "Edits kept",
+      "description": "How many edits the pane keeps before dropping the oldest.",
+      "default": 100
+    }
+  }
+}

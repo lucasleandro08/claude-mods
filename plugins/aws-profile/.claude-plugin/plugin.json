@@ -1,0 +1,20 @@
+{
+  "name": "aws-profile",
+  "displayName": "AWS Profile",
+  "version": "1.0.0",
+  "description": "Shows the AWS_PROFILE Claude Code runs with above the prompt, in red when it looks like production.",
+  "author": { "name": "Lucas Leandro", "url": "https://github.com/lucasleandro08" },
+  "homepage": "https://github.com/lucasleandro08/claude-mods",
+  "repository": "https://github.com/lucasleandro08/claude-mods",
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "keywords": ["claude-code", "claude-mod", "aws"],
+  "userConfig": {
+    "productionPattern": {
+      "type": "string",
+      "title": "Production profile pattern",
+      "description": "Regular expression that marks a profile as production (case-insensitive).",
+      "default": "prod"
+    }
+  }
+}

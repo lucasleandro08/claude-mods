@@ -1,0 +1,23 @@
+import { describe, expect, test } from 'claude-code/testing'
+
+const SURFACES = ['terminal', 'desktop'] as const
+const BAND = { hasSurvey: false, isWorking: false, maxRows: 4, bodyColumns: 80, scroll: { offset: 0, bodyRows: 4 }, view: {} }
+
+describe('aws-profile', () => {
+  for (const surface of SURFACES) {
+    test(`shows the AWS profile and keeps the band beneath on ${surface}`, async ($, on) => {
+      on('env.get', () => ({ value: 'prod-admin' }))
+      on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+        const { Text } = $.ui.resolve(e)
+        return <Text>beneath</Text>
+      })
+      on('tool.call', { tool: 'Bash' }, () => ({ result: {} as never }))
+      await $.tool.call({ tool: 'Bash', command: 'aws sts get-caller-identity' })
+
+      const band = await $.ui.mount({ plugin: 'aws-profile', surface, component: 'AbovePrompt', props: BAND })
+      const texts = await band.findAll({ type: 'Text', text: 'prod-admin' })
+      expect(texts.some(t => t.props.color === '#ff5555')).toBe(true)
+      expect(await band.find({ text: 'beneath' })).toBeDefined()
+    })
+  }
+})

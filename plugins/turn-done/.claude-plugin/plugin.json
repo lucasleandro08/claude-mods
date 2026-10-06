@@ -1,0 +1,25 @@
+{
+  "name": "turn-done",
+  "displayName": "Turn Done",
+  "version": "1.0.0",
+  "description": "A toast and a chime when a long Claude turn finishes, so you can look away while it works.",
+  "author": { "name": "Lucas Leandro", "url": "https://github.com/lucasleandro08" },
+  "homepage": "https://github.com/lucasleandro08/claude-mods",
+  "repository": "https://github.com/lucasleandro08/claude-mods",
+  "license": "MIT",
+  "keywords": ["claude-code", "claude-mod", "notification", "sound"],
+  "userConfig": {
+    "thresholdSeconds": {
+      "type": "number",
+      "title": "Long turn (seconds)",
+      "description": "Turns shorter than this finish silently.",
+      "default": 60
+    },
+    "playSound": {
+      "type": "boolean",
+      "title": "Play a sound",
+      "description": "Play the chime with the toast (macOS).",
+      "default": true
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "codex-loop",
+  "displayName": "Codex Loop",
+  "version": "1.0.0",
+  "description": "/codex-loop <PR> hands Claude a review loop with the Codex GitHub bot: request a review, weigh each finding, fix or 👎 it, reply, resolve and repeat until 👍.",
+  "author": { "name": "Lucas Leandro", "url": "https://github.com/lucasleandro08" },
+  "homepage": "https://github.com/lucasleandro08/claude-mods",
+  "repository": "https://github.com/lucasleandro08/claude-mods",
+  "license": "MIT",
+  "keywords": ["claude-code", "claude-mod", "codex", "code-review", "github"],
+  "userConfig": {
+    "codexBotLogin": {
+      "type": "string",
+      "title": "Codex bot login",
+      "description": "GitHub login of the Codex review bot.",
+      "default": "chatgpt-codex-connector[bot]"
+    }
+  }
+}
