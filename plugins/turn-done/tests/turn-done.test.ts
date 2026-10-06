@@ -1,6 +1,9 @@
+import type { On } from 'claude-code'
 import { describe, expect, test } from 'claude-code/testing'
 
-const ON = { enabled: true }
+const STATE = JSON.stringify({ enabled: { 'turn-done': true } })
+const turnOn = (on: On) =>
+  on('fs.read', ($, e) => (e.path.endsWith('dracula-mods.json') ? { value: STATE } : { deny: 'missing' }))
 
 describe('turn-done', () => {
   for (const [label, durationMs, isAborted, expected] of [
@@ -8,7 +11,8 @@ describe('turn-done', () => {
     ['short', 10_000, false, 0],
     ['aborted', 90_000, true, 0],
   ] as const) {
-    test(`${label} turn → ${expected} toast`, { options: ON }, async ($, on) => {
+    test(`${label} turn → ${expected} toast`, async ($, on) => {
+    turnOn(on)
       const toasts: string[] = []
       const sounds: string[] = []
       on('turn.complete', ($, e) => ({ text: e.answer }))
@@ -29,7 +33,8 @@ describe('turn-done', () => {
     })
   }
 
-  test('sound can be turned off', { options: { ...ON, playSound: false } }, async ($, on) => {
+  test('sound can be turned off', { options: { playSound: false } }, async ($, on) => {
+    turnOn(on)
     const sounds: string[] = []
     on('turn.complete', ($, e) => ({ text: e.answer }))
     on('ui.toast', () => ({ value: undefined }))

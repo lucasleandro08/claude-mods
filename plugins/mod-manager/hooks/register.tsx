@@ -2,21 +2,32 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { ModEntry, Notice } from '../types'
-import { entries, installCommand } from '../src/catalog'
+import { entries, installCommand, readInstalled } from '../src/catalog'
 import { claudeCandidates, installArgs, readInstallResult } from '../src/install'
+import { parseState, serializeState, statePath, withToggle } from '../src/shared/toggle'
 import { ModsChip } from '../ui/chip'
 import { ModsPane } from '../ui/pane'
 
 const PANE_ID = 'mod-manager'
+const REFRESH_MS = 10_000
 
 const mods = atom({ plugin: 'mod-manager', key: 'mods' } as const, [] as ModEntry[])
-const REFRESH_MS = 30_000
 const lastError = atom({ plugin: 'mod-manager', key: 'lastError' } as const, '')
 const installing = atom({ plugin: 'mod-manager', key: 'installing' } as const, [])
 const notices = atom({ plugin: 'mod-manager', key: 'notices' } as const, {})
 
+async function stateFile($: EngineInterface) {
+  return statePath(await $.env.get('HOME').catch(() => undefined))
+}
+
+async function readState($: EngineInterface) {
+  return parseState(await $.fs.read(await stateFile($)).catch(() => ''))
+}
+
 async function refreshMods($: EngineInterface) {
-  const next = entries(await $.config.list())
+  const settings = await $.settings.read().catch(() => ({}))
+  const envDirs = await $.env.get('CLAUDE_CODE_PLUGIN_DIRS').catch(() => undefined)
+  const next = entries(readInstalled(settings, envDirs), await readState($))
   await update($, mods, prev => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next))
   return next
 }
@@ -26,13 +37,18 @@ async function setNotice($: EngineInterface, name: string, notice: Notice) {
 }
 
 async function toggle($: EngineInterface, mod: ModEntry) {
-  const result = await $.config.set({ key: mod.key, value: mod.state !== 'on' })
-  await update($, lastError, () => (result.deny === undefined ? '' : `${mod.title}: ${result.deny}`))
+  try {
+    const next = withToggle(await readState($), mod.name, mod.state !== 'on')
+    await $.fs.write(await stateFile($), serializeState(next))
+    await update($, lastError, () => '')
+  } catch (err) {
+    await update($, lastError, () => `${mod.title}: ${err instanceof Error ? err.message : String(err)}`)
+  }
   await refreshMods($)
 }
 
 async function runInstall($: EngineInterface, claudePath: string, name: string) {
-  for (const bin of claudeCandidates(await $.env.get('HOME'), claudePath)) {
+  for (const bin of claudeCandidates(await $.env.get('HOME').catch(() => undefined), claudePath)) {
     try {
       const ran = await $.process.run([bin, ...installArgs(name)], { timeoutMs: 120_000 })
       return readInstallResult(ran.exitCode, ran.stdout, ran.stderr)
@@ -68,8 +84,7 @@ async function install($: EngineInterface, claudePath: string, name: string) {
 
 async function installAll($: EngineInterface, claudePath: string, names: readonly string[]) {
   for (const name of names) {
-    const ok = await install($, claudePath, name)
-    if (!ok) return
+    if (!(await install($, claudePath, name))) return
   }
 }
 
@@ -89,13 +104,17 @@ export const register: Register = (on, options) => {
   const openOnStart = options.openOnStart !== false
 
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'mods', description: 'Install the claude-mods and turn them on and off' })
+    await $.command.register({ name: 'mods', description: 'Install the Dracula mods and turn them on and off' })
     void start($, openOnStart).catch(() => undefined)
     $.clock.every(REFRESH_MS, () => void refreshMods($).catch(() => undefined))
     return next(e)
   })
 
-  on('command.run', { command: 'mods' }, async $ => {
+  on('command.run', { command: 'mods' }, async ($, e) => {
+    if (e.args.trim() === 'status') {
+      const list = await refreshMods($)
+      return { text: list.map(m => `${m.state.padEnd(8)} ${m.name}`).join('\n') }
+    }
     await openPane($)
     return { text: 'Mods pane opened.' }
   })

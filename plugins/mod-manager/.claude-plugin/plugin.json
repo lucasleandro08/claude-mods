@@ -1,8 +1,8 @@
 {
   "name": "mod-manager",
   "displayName": "Mod Manager",
-  "version": "1.1.0",
-  "description": "A Dracula-themed pane to install the claude-mods and turn them on and off. Every other mod ships disabled; this one is on and lists them all.",
+  "version": "2.0.0",
+  "description": "A Dracula-themed pane to install the Dracula mods and turn them on and off. Every other mod ships off; this one lists them all and remembers your choice across sessions.",
   "author": {
     "name": "Lucas Leandro",
     "url": "https://github.com/lucasleandro08"

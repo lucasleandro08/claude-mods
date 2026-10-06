@@ -2,6 +2,23 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import { ProfileChip } from '../ui/chip'
+import { isOn, parseState, statePath } from '../src/shared/toggle'
+
+const MOD = 'aws-profile'
+const CHECK_MS = 5000
+const active = atom({ plugin: 'aws-profile', key: 'active' } as const, false)
+let checkedAt = 0
+
+async function isActive($: EngineInterface) {
+  if (Date.now() - checkedAt > CHECK_MS) {
+    checkedAt = Date.now()
+    const home = await $.env.get('HOME').catch(() => undefined)
+    const text = await $.fs.read(statePath(home)).catch(() => '')
+    const on = isOn(parseState(text), MOD)
+    await update($, active, prev => (prev === on ? prev : on))
+  }
+  return read($, active)
+}
 
 const REFRESH_MS = 30_000
 
@@ -13,23 +30,25 @@ async function refresh($: EngineInterface) {
 }
 
 export const register: Register = (on, options) => {
-  if (options.enabled !== true) return
-
   const production = new RegExp(String(options.productionPattern ?? 'prod'), 'i')
 
   on('session.start', async ($, e, next) => {
-    void refresh($)
-    $.clock.every(REFRESH_MS, () => void refresh($))
+    void isActive($)
+    $.clock.every(CHECK_MS, () => void isActive($))
+    void isActive($).then(enabled => (enabled ? refresh($) : undefined))
+    $.clock.every(REFRESH_MS, () => void isActive($).then(enabled => (enabled ? refresh($) : undefined)))
     return next(e)
   })
 
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
+    if (!(await isActive($))) return next(e)
     const ran = await next(e)
     if (/\baws\b|AWS_PROFILE/.test(e.command)) await refresh($)
     return ran
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    if (!(await read($, active))) return next(e)
     const rest = await next(e)
     const current = await read($, profile)
     if (e.props.hasSurvey || current === '') return rest

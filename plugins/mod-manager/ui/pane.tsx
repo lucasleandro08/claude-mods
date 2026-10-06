@@ -78,6 +78,5 @@ function Action({ ui, mod, isInstalling, onToggle, onInstall }: ActionProps) {
   const { Text, Button } = ui
   if (isInstalling) return <Text color={DRACULA.yellow}>installing…</Text>
   if (mod.state === 'missing') return <Button key={`install-${mod.name}`} label="Install" dimColor onPress={onInstall} />
-  if (mod.state === 'locked') return <Text color={DRACULA.comment}>managed</Text>
   return <Button key={`toggle-${mod.name}`} label={mod.state === 'on' ? 'Turn off' : 'Turn on'} dimColor onPress={onToggle} />
 }

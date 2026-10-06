@@ -1,12 +1,28 @@
-import type { Register } from 'claude-code'
+import { atom, read, update } from 'claude-code'
+import type { EngineInterface, Register } from 'claude-code'
 
 import { loopPrompt, parseTarget } from '../src/prompt'
+import { isOn, OFF_TEXT, parseState, statePath } from '../src/shared/toggle'
+
+const MOD = 'codex-loop'
+const CHECK_MS = 5000
+const active = atom({ plugin: 'codex-loop', key: 'active' } as const, false)
+let checkedAt = 0
+
+async function isActive($: EngineInterface) {
+  if (Date.now() - checkedAt > CHECK_MS) {
+    checkedAt = Date.now()
+    const home = await $.env.get('HOME').catch(() => undefined)
+    const text = await $.fs.read(statePath(home)).catch(() => '')
+    const on = isOn(parseState(text), MOD)
+    await update($, active, prev => (prev === on ? prev : on))
+  }
+  return read($, active)
+}
 
 const USAGE = 'Usage: /codex-loop <PR url | owner/repo#123 | 123>'
 
 export const register: Register = (on, options) => {
-  if (options.enabled !== true) return
-
   const bot = String(options.codexBotLogin ?? 'chatgpt-codex-connector[bot]')
 
   on('session.start', async ($, e, next) => {
@@ -15,6 +31,7 @@ export const register: Register = (on, options) => {
   })
 
   on('command.run', { command: 'codex-loop' }, async ($, e) => {
+    if (!(await isActive($))) return { text: OFF_TEXT }
     const target = parseTarget(e.args)
     if (!target) return { text: USAGE }
 

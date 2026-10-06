@@ -1,7 +1,9 @@
 import type { On } from 'claude-code'
 import { describe, expect, test } from 'claude-code/testing'
 
-const ON = { enabled: true }
+const STATE = JSON.stringify({ enabled: { 'kube-pane': true } })
+const turnOn = (on: On) =>
+  on('fs.read', ($, e) => (e.path.endsWith('dracula-mods.json') ? { value: STATE } : { deny: 'missing' }))
 
 const SURFACES = ['terminal', 'desktop'] as const
 const PANE = { title: 'Pods', isFocused: false, bodyColumns: 100, placement: 'dock' as const, scroll: { offset: 0, bodyRows: 40 }, view: {} }
@@ -45,7 +47,8 @@ function setup(on: On, calls: string[], isPlaced = true) {
 
 describe('kube-pane', () => {
   for (const surface of SURFACES) {
-    test(`lists pods of the default namespace, unhealthy first, on ${surface}`, { options: ON }, async ($, on) => {
+    test(`lists pods of the default namespace, unhealthy first, on ${surface}`, async ($, on) => {
+    turnOn(on)
       const calls: string[] = []
       setup(on, calls)
       await $.command.run({ command: 'pods', args: '' } as never)
@@ -57,7 +60,8 @@ describe('kube-pane', () => {
       expect(await pane.find({ text: /page 1\/2/ })).toBeDefined()
     })
 
-    test(`context chip is red on production and keeps the band beneath on ${surface}`, { options: ON }, async ($, on) => {
+    test(`context chip is red on production and keeps the band beneath on ${surface}`, async ($, on) => {
+    turnOn(on)
       setup(on, [], false)
       on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
         const { Text } = $.ui.resolve(e)
@@ -72,7 +76,8 @@ describe('kube-pane', () => {
     })
   }
 
-  test('switching context rewrites Claude kubectl commands and never touches the kubeconfig', { options: ON }, async ($, on) => {
+  test('switching context rewrites Claude kubectl commands and never touches the kubeconfig', async ($, on) => {
+    turnOn(on)
     const calls: string[] = []
     const ran: string[] = []
     setup(on, calls)
@@ -92,7 +97,8 @@ describe('kube-pane', () => {
     expect(calls.some(c => c.includes('use-context'))).toBe(false)
   })
 
-  test('pages, filters and opens a shell in the chosen container', { options: ON }, async ($, on) => {
+  test('pages, filters and opens a shell in the chosen container', async ($, on) => {
+    turnOn(on)
     const terminal: string[] = []
     setup(on, [])
     on('tool.call', { tool: 'mcp__terminal__run_in_terminal' }, ($, e) => {
@@ -117,7 +123,8 @@ describe('kube-pane', () => {
   })
 
   for (const [label, answer, opens] of [['opens on confirm', 'Open shell', true], ['stays closed on cancel', 'Cancel', false]] as const) {
-    test(`production shell ${label}`, { options: ON }, async ($, on) => {
+    test(`production shell ${label}`, async ($, on) => {
+    turnOn(on)
       const terminal: string[] = []
       setup(on, [])
       on('tool.call', { tool: 'AskUserQuestion' }, ($, e) => {
@@ -135,7 +142,8 @@ describe('kube-pane', () => {
     })
   }
 
-  test('default namespace is configurable', { options: { ...ON, defaultNamespace: 'app' } }, async ($, on) => {
+  test('default namespace is configurable', { options: { defaultNamespace: 'app' } }, async ($, on) => {
+    turnOn(on)
     const calls: string[] = []
     setup(on, calls)
     await $.command.run({ command: 'pods', args: '' } as never)

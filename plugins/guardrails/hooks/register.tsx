@@ -1,3 +1,4 @@
+import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import {
@@ -10,6 +11,23 @@ import {
   secretPrintReason,
 } from '../src/rules'
 import { binaryCandidates } from '../src/shared/bin'
+import { isOn, parseState, statePath } from '../src/shared/toggle'
+
+const MOD = 'guardrails'
+const CHECK_MS = 5000
+const active = atom({ plugin: 'guardrails', key: 'active' } as const, false)
+let checkedAt = 0
+
+async function isActive($: EngineInterface) {
+  if (Date.now() - checkedAt > CHECK_MS) {
+    checkedAt = Date.now()
+    const home = await $.env.get('HOME').catch(() => undefined)
+    const text = await $.fs.read(statePath(home)).catch(() => '')
+    const on = isOn(parseState(text), MOD)
+    await update($, active, prev => (prev === on ? prev : on))
+  }
+  return read($, active)
+}
 
 async function run($: EngineInterface, name: string, args: readonly string[]) {
   for (const bin of binaryCandidates(name, await $.env.get('HOME'))) {
@@ -49,11 +67,10 @@ async function confirmProduction($: EngineInterface, context: string, command: s
 }
 
 export const register: Register = (on, options) => {
-  if (options.enabled !== true) return
-
   const production = new RegExp(String(options.productionPattern ?? 'prod'), 'i')
 
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
+    if (!(await isActive($))) return next(e)
     const command = e.command
 
     if (options.blockKubeconfigChanges !== false && changesKubeconfig(command)) {

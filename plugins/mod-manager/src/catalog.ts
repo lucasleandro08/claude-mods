@@ -1,6 +1,5 @@
 import type { ModEntry, ModState } from '../types'
-
-export const MARKETPLACE = 'claude-mods'
+import { isOn, MARKETPLACE, type ModsState } from './shared/toggle'
 
 export const CATALOG = [
   { name: 'live-diff', title: 'Live Diff', summary: 'Diff of every edit Claude makes, with a file navigator' },
@@ -13,20 +12,29 @@ export const CATALOG = [
   { name: 'aws-profile', title: 'AWS Profile', summary: 'Shows AWS_PROFILE above the prompt' },
 ] as const
 
-export type ConfigRowLike = { key: string; value: unknown; isLocked: boolean; provider?: { plugin: string } }
+export type Installed = { enabledPlugins: Record<string, unknown>; pluginDirs: string[] }
 
-// A plugin loaded from a folder names its rows `<name>.<field>`; one installed from a marketplace `<name>@<marketplace>.<field>`
-export function isEnabledRow(row: ConfigRowLike, name: string) {
-  if (!row.key.endsWith('.enabled')) return false
-  const owner = row.key.slice(0, -'.enabled'.length)
-  return owner === name || owner.startsWith(`${name}@`) || row.provider?.plugin === name
+export function readInstalled(settings: Readonly<Record<string, unknown>>, envDirs: string | undefined): Installed {
+  const enabledPlugins = (settings.enabledPlugins ?? {}) as Record<string, unknown>
+  const env = (settings.env ?? {}) as Record<string, unknown>
+  const dirs = [envDirs, typeof env.CLAUDE_CODE_PLUGIN_DIRS === 'string' ? env.CLAUDE_CODE_PLUGIN_DIRS : undefined]
+    .filter((d): d is string => typeof d === 'string' && d !== '')
+    .flatMap(d => d.split(':'))
+    .map(d => d.trim().replace(/\/+$/, ''))
+    .filter(Boolean)
+  return { enabledPlugins, pluginDirs: [...new Set(dirs)] }
 }
 
-export function entries(rows: readonly ConfigRowLike[]): ModEntry[] {
+export function isInstalled(installed: Installed, name: string) {
+  const fromMarketplace = installed.enabledPlugins[`${name}@${MARKETPLACE}`] === true
+  const fromFolder = installed.pluginDirs.some(dir => dir.split('/').pop() === name)
+  return fromMarketplace || fromFolder
+}
+
+export function entries(installed: Installed, state: ModsState): ModEntry[] {
   return CATALOG.map(mod => {
-    const row = rows.find(r => isEnabledRow(r, mod.name))
-    const state: ModState = !row ? 'missing' : row.isLocked ? 'locked' : row.value === true ? 'on' : 'off'
-    return { ...mod, state, key: row?.key ?? `${mod.name}.enabled` }
+    const status: ModState = !isInstalled(installed, mod.name) ? 'missing' : isOn(state, mod.name) ? 'on' : 'off'
+    return { ...mod, state: status }
   })
 }
 

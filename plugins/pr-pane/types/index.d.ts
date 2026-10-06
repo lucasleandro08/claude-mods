@@ -15,6 +15,6 @@ export type PrRow = {
 
 declare module 'claude-code' {
   interface PluginState {
-    'pr-pane': { rows: PrRow[]; isOpen: boolean; isLoading: boolean; updatedAt: number; error: string }
+    'pr-pane': { active: boolean; rows: PrRow[]; isOpen: boolean; isLoading: boolean; updatedAt: number; error: string }
   }
 }

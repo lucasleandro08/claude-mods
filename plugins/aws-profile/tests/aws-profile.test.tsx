@@ -1,13 +1,17 @@
+import type { On } from 'claude-code'
 import { describe, expect, test } from 'claude-code/testing'
 
-const ON = { enabled: true }
+const STATE = JSON.stringify({ enabled: { 'aws-profile': true } })
+const turnOn = (on: On) =>
+  on('fs.read', ($, e) => (e.path.endsWith('dracula-mods.json') ? { value: STATE } : { deny: 'missing' }))
 
 const SURFACES = ['terminal', 'desktop'] as const
 const BAND = { hasSurvey: false, isWorking: false, maxRows: 4, bodyColumns: 80, scroll: { offset: 0, bodyRows: 4 }, view: {} }
 
 describe('aws-profile', () => {
   for (const surface of SURFACES) {
-    test(`shows the AWS profile and keeps the band beneath on ${surface}`, { options: ON }, async ($, on) => {
+    test(`shows the AWS profile and keeps the band beneath on ${surface}`, async ($, on) => {
+    turnOn(on)
       on('env.get', () => ({ value: 'prod-admin' }))
       on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
         const { Text } = $.ui.resolve(e)

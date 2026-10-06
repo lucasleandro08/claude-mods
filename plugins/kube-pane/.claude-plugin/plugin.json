@@ -1,7 +1,7 @@
 {
   "name": "kube-pane",
   "displayName": "Kube Pane",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A kubectl context chip above the prompt and a Dracula-themed pods pane: switch context for Claude's session without touching your kubeconfig, filter pods, and open a shell in any container from the app's Terminal.",
   "author": {
     "name": "Lucas Leandro",
@@ -21,12 +21,6 @@
     "dracula"
   ],
   "userConfig": {
-    "enabled": {
-      "type": "boolean",
-      "title": "Enabled",
-      "description": "Turn this mod on. Off by default; toggle it here or in the Mods pane (/mods).",
-      "default": false
-    },
     "productionPattern": {
       "type": "string",
       "title": "Production context pattern",

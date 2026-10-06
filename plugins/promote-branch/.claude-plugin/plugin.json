@@ -1,7 +1,7 @@
 {
   "name": "promote-branch",
   "displayName": "Promote Branch",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "/promote previews merging the current branch into an integration branch (staging, homolog, develop); /promote go does a full merge in a temporary worktree and pushes it, never touching your checkout.",
   "author": {
     "name": "Lucas Leandro",
@@ -19,12 +19,6 @@
     "deploy"
   ],
   "userConfig": {
-    "enabled": {
-      "type": "boolean",
-      "title": "Enabled",
-      "description": "Turn this mod on. Off by default; toggle it here or in the Mods pane (/mods).",
-      "default": false
-    },
     "targetBranch": {
       "type": "string",
       "title": "Target branch",
@@ -37,5 +31,6 @@
       "description": "Comma-separated branches /promote refuses to run on (the target is always included).",
       "default": "main,master"
     }
-  }
+  },
+  "types": "./types/index.d.ts"
 }

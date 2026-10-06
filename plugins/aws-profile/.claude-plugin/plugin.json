@@ -1,7 +1,7 @@
 {
   "name": "aws-profile",
   "displayName": "AWS Profile",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Shows the AWS_PROFILE Claude Code runs with above the prompt, in red when it looks like production.",
   "author": {
     "name": "Lucas Leandro",
@@ -17,12 +17,6 @@
     "aws"
   ],
   "userConfig": {
-    "enabled": {
-      "type": "boolean",
-      "title": "Enabled",
-      "description": "Turn this mod on. Off by default; toggle it here or in the Mods pane (/mods).",
-      "default": false
-    },
     "productionPattern": {
       "type": "string",
       "title": "Production profile pattern",

@@ -6,6 +6,23 @@ import { pickNamespace, shellCommand, shortContext, toRows, withContext, type Po
 import { binaryCandidates } from '../src/shared/bin'
 import { ContextChip } from '../ui/chip'
 import { PaneError, PodsPane } from '../ui/pane'
+import { isOn, OFF_TEXT, parseState, statePath } from '../src/shared/toggle'
+
+const MOD = 'kube-pane'
+const CHECK_MS = 5000
+const active = atom({ plugin: 'kube-pane', key: 'active' } as const, false)
+let checkedAt = 0
+
+async function isActive($: EngineInterface) {
+  if (Date.now() - checkedAt > CHECK_MS) {
+    checkedAt = Date.now()
+    const home = await $.env.get('HOME').catch(() => undefined)
+    const text = await $.fs.read(statePath(home)).catch(() => '')
+    const on = isOn(parseState(text), MOD)
+    await update($, active, prev => (prev === on ? prev : on))
+  }
+  return read($, active)
+}
 
 const PANE_ID = 'kube-pane'
 
@@ -137,36 +154,40 @@ async function openShell($: EngineInterface, settings: Settings, pod: PodRow) {
 }
 
 export const register: Register = (on, options) => {
-  if (options.enabled !== true) return
-
   const settings = readSettings(options)
 
   on('session.start', async ($, e, next) => {
+    void isActive($)
+    $.clock.every(CHECK_MS, () => void isActive($))
     await $.command.register({ name: 'pods', description: 'Open the pods pane for the session kubectl context' })
-    void loadContexts($, settings).catch(() => undefined)
+    void isActive($).then(enabled => (enabled ? loadContexts($, settings) : undefined)).catch(() => undefined)
     $.clock.every(settings.refreshMs, () => {
-      void read($, isOpen).then(open => (open ? loadPods($, settings) : undefined))
+      void Promise.all([isActive($), read($, isOpen)]).then(([enabled, open]) => (enabled && open ? loadPods($, settings) : undefined))
     })
 
     return next(e)
   })
 
   on('command.run', { command: 'pods' }, async $ => {
+    if (!(await isActive($))) return { text: OFF_TEXT }
     await openPane($, settings)
     return { text: 'Pods pane opened.' }
   })
 
   on('ui.close', async ($, e, next) => {
+    if (!(await isActive($))) return next(e)
     if (e.id === PANE_ID) await update($, isOpen, () => false)
     return next(e)
   })
 
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
+    if (!(await isActive($))) return next(e)
     const command = withContext(e.command, await read($, context))
     return next(command === e.command ? e : { ...e, command })
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    if (!(await read($, active))) return next(e)
     const rest = await next(e)
     const ctx = await read($, context)
     if (e.props.hasSurvey || ctx === '') return rest
@@ -182,6 +203,9 @@ export const register: Register = (on, options) => {
 
   on('ui.render', { component: 'Pane', requestId: PANE_ID }, async ($, e) => {
     const ui = $.ui.resolve(e)
+    if (!(await read($, active))) {
+      return <ui.Box padding={1}><ui.Text color="#6272a4">{OFF_TEXT}</ui.Text></ui.Box>
+    }
     try {
       const ctx = await read($, context)
       return (

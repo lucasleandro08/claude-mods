@@ -1,141 +1,111 @@
+import type { On } from 'claude-code'
 import { describe, expect, mock, test } from 'claude-code/testing'
 
 const SURFACES = ['terminal', 'desktop'] as const
 const PANE = { title: 'Mods', isFocused: false, bodyColumns: 90, placement: 'dock' as const, scroll: { offset: 0, bodyRows: 40 }, view: {} }
 const BAND = { hasSurvey: false, isWorking: false, maxRows: 4, bodyColumns: 80, scroll: { offset: 0, bodyRows: 4 }, view: {} }
 
-type Row = { key: string; label: string; kind: 'boolean'; value: boolean; isLocked: boolean; provider: { plugin: string; tier: 'user' } }
-
-function row(plugin: string, value: boolean, isLocked = false, id = plugin): Row {
-  return { key: `${id}.enabled`, label: 'Enabled', kind: 'boolean', value, isLocked, provider: { plugin, tier: 'user' } }
+type World = {
+  enabledPlugins?: Record<string, boolean>
+  pluginDirs?: string
+  state?: Record<string, boolean>
+  writes?: string[]
 }
 
-function settings(initial: Row[]) {
-  const rows = [...initial]
-  const writes: { key: string; value: unknown }[] = []
-  return {
-    rows,
-    writes,
-    list: () => ({ value: rows }),
-    set: (e: { key: string; value: unknown }) => {
-      writes.push({ key: e.key, value: e.value })
-      const target = rows.find(r => r.key === e.key)
-      if (!target) return { deny: 'no such row' }
-      target.value = e.value === true
-      return { value: e.value as boolean }
-    },
-  }
+function world(on: On, w: World) {
+  let file = w.state ? JSON.stringify({ enabled: w.state }) : ''
+  on('settings.read', () => ({ value: { enabledPlugins: w.enabledPlugins ?? {} } }))
+  on('env.get', ($, e) => ({ value: e.name === 'HOME' ? '/home/dev' : e.name === 'CLAUDE_CODE_PLUGIN_DIRS' ? w.pluginDirs : undefined }))
+  on('fs.read', () => (file === '' ? { deny: 'missing' } : { value: file }))
+  on('fs.write', ($, e) => {
+    file = e.text
+    w.writes?.push(`${e.path} ${e.text}`)
+    return { value: undefined }
+  })
+  on('ui.open', () => ({ value: { isPlaced: true } }))
 }
+
+const out = (exitCode: number, stdout: string, stderr = '') => ({
+  value: { exitCode, stdout, stderr, isStdoutTruncated: false, isStderrTruncated: false },
+})
+
+const OPEN = { command: 'mods', args: '' } as never
 
 describe('mod-manager', () => {
   for (const surface of SURFACES) {
-    test(`lists installed, off and missing mods on ${surface}`, async ($, on) => {
-      const store = settings([row('live-diff', true), row('kube-pane', false), row('guardrails', false, true)])
-      on('config.list', () => store.list())
-
-      on('ui.open', () => ({ value: { isPlaced: true } }))
-
-      await $.command.run({ command: 'mods', args: '' } as never)
+    test(`finds mods installed from the marketplace or a folder on ${surface}`, async ($, on) => {
+      world(on, {
+        enabledPlugins: { 'live-diff@dracula-mods': true, 'pr-pane@other-market': true },
+        pluginDirs: '~/mods/kube-pane:/opt/mods/guardrails/',
+        state: { 'live-diff': true },
+      })
+      await $.command.run(OPEN)
 
       const pane = await $.ui.mount({ plugin: 'mod-manager', surface, component: 'Pane', requestId: 'mod-manager', props: PANE })
       expect(await pane.find({ text: /1 of 8 on/ })).toBeDefined()
-      expect(await pane.find({ type: 'Button', key: 'toggle-live-diff' })).toBeDefined()
-      expect(await pane.find({ type: 'Button', key: 'toggle-kube-pane' })).toBeDefined()
-      expect(await pane.find({ type: 'Button', key: 'toggle-guardrails' })).toBeUndefined()
-      expect(await pane.find({ text: 'managed' })).toBeDefined()
+      expect((await pane.find({ type: 'Button', key: 'toggle-live-diff' }))?.props.label).toBe('Turn off')
+      expect((await pane.find({ type: 'Button', key: 'toggle-kube-pane' }))?.props.label).toBe('Turn on')
+      expect(await pane.find({ type: 'Button', key: 'toggle-guardrails' })).toBeDefined()
       expect(await pane.find({ type: 'Button', key: 'install-pr-pane' })).toBeDefined()
-      expect(await pane.find({ type: 'Button', key: 'install-all' })).toBeDefined()
     })
 
     test(`chip counts mods on and keeps the band beneath on ${surface}`, async ($, on) => {
-      const store = settings([row('live-diff', true), row('kube-pane', true)])
-      on('config.list', () => store.list())
+      world(on, { enabledPlugins: { 'live-diff@dracula-mods': true, 'kube-pane@dracula-mods': true }, state: { 'live-diff': true, 'kube-pane': true } })
       on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
         const { Text } = $.ui.resolve(e)
         return <Text>beneath</Text>
       })
-
-      on('ui.open', () => ({ value: { isPlaced: true } }))
-
-      await $.command.run({ command: 'mods', args: '' } as never)
+      await $.command.run(OPEN)
 
       const band = await $.ui.mount({ plugin: 'mod-manager', surface, component: 'AbovePrompt', props: BAND })
-      const chip = await band.find({ type: 'Button', key: 'open-mods' })
-      expect(chip?.props.label).toBe('Mods · 2/8')
+      expect((await band.find({ type: 'Button', key: 'open-mods' }))?.props.label).toBe('Mods · 2/8')
       expect(await band.find({ text: 'beneath' })).toBeDefined()
     })
   }
 
-  test('turning a mod on and off writes its enabled option', async ($, on) => {
-    const store = settings([row('kube-pane', false)])
-    on('config.list', () => store.list())
-    on('config.set', ($, e) => store.set(e) as never)
-
-    on('ui.open', () => ({ value: { isPlaced: true } }))
-
-    await $.command.run({ command: 'mods', args: '' } as never)
+  test('turning a mod on and off writes the shared state file', async ($, on) => {
+    const writes: string[] = []
+    world(on, { enabledPlugins: { 'kube-pane@dracula-mods': true }, writes })
+    await $.command.run(OPEN)
 
     const pane = await $.ui.mount({ plugin: 'mod-manager', surface: 'desktop', component: 'Pane', requestId: 'mod-manager', props: PANE })
     await pane.press({ key: 'toggle-kube-pane' })
-    expect(store.writes).toEqual([{ key: 'kube-pane.enabled', value: true }])
+    expect(writes[0]).toContain('/home/dev/.claude/dracula-mods.json')
+    expect(writes[0]).toContain('"kube-pane": true')
     expect((await pane.find({ type: 'Button', key: 'toggle-kube-pane' }))?.props.label).toBe('Turn off')
 
     await pane.press({ key: 'toggle-kube-pane' })
-    expect(store.writes[1]).toEqual({ key: 'kube-pane.enabled', value: false })
+    expect(writes[1]).toContain('"kube-pane": false')
   })
 
-  test('the chip can be hidden', { options: { showChip: false } }, async ($, on) => {
-    on('config.list', () => ({ value: [] }))
-    on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
-      const { Text } = $.ui.resolve(e)
-      return <Text>beneath</Text>
-    })
-    on('ui.open', () => ({ value: { isPlaced: true } }))
-    await $.command.run({ command: 'mods', args: '' } as never)
-    const band = await $.ui.mount({ plugin: 'mod-manager', surface: 'desktop', component: 'AbovePrompt', props: BAND })
-    expect(await band.find({ type: 'Button' })).toBeUndefined()
-  })
-
-  const out = (exitCode: number, stdout: string, stderr = '') => ({ value: { exitCode, stdout, stderr, isStdoutTruncated: false, isStderrTruncated: false } })
-
-  test('Install runs the claude CLI for that mod and reports success', async ($, on) => {
-    const store = settings([])
+  test('Install runs the claude CLI against dracula-mods', async ($, on) => {
     const calls: string[] = []
-    on('config.list', () => store.list())
-    on('env.get', () => ({ value: '/home/dev' }))
+    world(on, {})
     on('process.run', ($, e) => {
       calls.push(e.argv.join(' '))
-      return out(0, '{"command":"install","outcome":"installed","plugin":"kube-pane@claude-mods"}')
+      return out(0, '{"command":"install","outcome":"installed"}')
     })
-
-    on('ui.open', () => ({ value: { isPlaced: true } }))
-
-    await $.command.run({ command: 'mods', args: '' } as never)
+    await $.command.run(OPEN)
 
     const pane = await $.ui.mount({ plugin: 'mod-manager', surface: 'desktop', component: 'Pane', requestId: 'mod-manager', props: PANE })
     await pane.press({ key: 'install-kube-pane' })
-    expect(calls).toEqual(['claude plugin install kube-pane@claude-mods --scope user --json'])
+    expect(calls).toEqual(['claude plugin install kube-pane@dracula-mods --scope user --json'])
     expect(await pane.find({ text: /Installed\. Turn it on/ })).toBeDefined()
   })
 
   test('Install shows the CLI error', async ($, on) => {
-    on('config.list', () => settings([]).list())
-    on('env.get', () => ({ value: undefined }))
-    on('process.run', () => out(1, '{"outcome":"failed","message":"Marketplace \\"claude-mods\\" not found"}', 'boom'))
-
-    on('ui.open', () => ({ value: { isPlaced: true } }))
-
-    await $.command.run({ command: 'mods', args: '' } as never)
+    world(on, {})
+    on('process.run', () => out(1, '{"outcome":"failed","message":"Marketplace not found"}', 'boom'))
+    await $.command.run(OPEN)
 
     const pane = await $.ui.mount({ plugin: 'mod-manager', surface: 'desktop', component: 'Pane', requestId: 'mod-manager', props: PANE })
     await pane.press({ key: 'install-pr-pane' })
-    expect(await pane.find({ text: /Install failed: Marketplace "claude-mods" not found/ })).toBeDefined()
+    expect(await pane.find({ text: /Install failed: Marketplace not found/ })).toBeDefined()
   })
 
   test('without the CLI the install command goes to the prompt', async ($, on) => {
     const filled: string[] = []
-    on('config.list', () => settings([]).list())
-    on('env.get', () => ({ value: undefined }))
+    world(on, {})
     on('process.run', () => {
       throw new Error('ENOENT')
     })
@@ -143,58 +113,39 @@ describe('mod-manager', () => {
       filled.push(e.text)
       return { isFilled: true } as never
     })
-
-    on('ui.open', () => ({ value: { isPlaced: true } }))
-
-    await $.command.run({ command: 'mods', args: '' } as never)
+    await $.command.run(OPEN)
 
     const pane = await $.ui.mount({ plugin: 'mod-manager', surface: 'desktop', component: 'Pane', requestId: 'mod-manager', props: PANE })
     await pane.press({ key: 'install-guardrails' })
-    expect(filled).toEqual(['/plugin install guardrails@claude-mods'])
-    expect(await pane.find({ text: /press Enter/ })).toBeDefined()
+    expect(filled).toEqual(['/plugin install guardrails@dracula-mods'])
   })
 
   test('Install all installs every missing mod in order', async ($, on) => {
     const installed: string[] = []
-    on('config.list', () => settings([row('live-diff', true), row('kube-pane', false)]).list())
-    on('env.get', () => ({ value: undefined }))
+    world(on, { enabledPlugins: { 'live-diff@dracula-mods': true, 'kube-pane@dracula-mods': true } })
     on('process.run', ($, e) => {
       installed.push(String(e.argv[3]))
       return out(0, '{"outcome":"installed"}')
     })
-
-    on('ui.open', () => ({ value: { isPlaced: true } }))
-
-    await $.command.run({ command: 'mods', args: '' } as never)
+    await $.command.run(OPEN)
 
     const pane = await $.ui.mount({ plugin: 'mod-manager', surface: 'desktop', component: 'Pane', requestId: 'mod-manager', props: PANE })
     await pane.press({ key: 'install-all' })
     expect(installed).toEqual([
-      'pr-pane@claude-mods',
-      'guardrails@claude-mods',
-      'promote-branch@claude-mods',
-      'codex-loop@claude-mods',
-      'turn-done@claude-mods',
-      'aws-profile@claude-mods',
+      'pr-pane@dracula-mods',
+      'guardrails@dracula-mods',
+      'promote-branch@dracula-mods',
+      'codex-loop@dracula-mods',
+      'turn-done@dracula-mods',
+      'aws-profile@dracula-mods',
     ])
-  })
-
-  test('finds mods installed from the marketplace and toggles their real row', async ($, on) => {
-    const store = settings([row('kube-pane', false, false, 'kube-pane@claude-mods'), row('live-diff', true, false, 'live-diff@claude-mods')])
-    on('config.list', () => store.list())
-    on('config.set', ($, e) => store.set(e) as never)
-    on('ui.open', () => ({ value: { isPlaced: true } }))
-    await $.command.run({ command: 'mods', args: '' } as never)
-
-    const pane = await $.ui.mount({ plugin: 'mod-manager', surface: 'desktop', component: 'Pane', requestId: 'mod-manager', props: PANE })
-    expect(await pane.find({ type: 'Button', key: 'install-kube-pane' })).toBeUndefined()
-    await pane.press({ key: 'toggle-kube-pane' })
-    expect(store.writes).toEqual([{ key: 'kube-pane@claude-mods.enabled', value: true }])
   })
 
   test('opens itself at session start while no mod is on', async ($, on) => {
     const opened: string[] = []
-    on('config.list', () => settings([row('kube-pane', false)]).list())
+    on('settings.read', () => ({ value: {} }))
+    on('env.get', () => ({ value: undefined }))
+    on('fs.read', () => ({ deny: 'missing' }))
     on('command.register', () => ({ value: undefined }) as never)
     on('ui.open', ($, e) => {
       opened.push(e.id)
@@ -206,5 +157,14 @@ describe('mod-manager', () => {
     await clock.advance(1)
     expect(opened).toEqual(['mod-manager'])
   })
-})
 
+  test('the chip can be hidden', { options: { showChip: false } }, async ($, on) => {
+    world(on, {})
+    on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+      const { Text } = $.ui.resolve(e)
+      return <Text>beneath</Text>
+    })
+    const band = await $.ui.mount({ plugin: 'mod-manager', surface: 'desktop', component: 'AbovePrompt', props: BAND })
+    expect(await band.find({ type: 'Button' })).toBeUndefined()
+  })
+})

@@ -1,9 +1,13 @@
+import type { On } from 'claude-code'
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-const ON = { enabled: true }
+const STATE = JSON.stringify({ enabled: { 'codex-loop': true } })
+const turnOn = (on: On) =>
+  on('fs.read', ($, e) => (e.path.endsWith('dracula-mods.json') ? { value: STATE } : { deny: 'missing' }))
 
 describe('/codex-loop', () => {
-  test('submits the loop prompt for a PR url', { options: ON }, async ($, on) => {
+  test('submits the loop prompt for a PR url', async ($, on) => {
+    turnOn(on)
     const sent: string[] = []
     on('prompt.submit', ($, e) => {
       sent.push(e.text)
@@ -17,7 +21,8 @@ describe('/codex-loop', () => {
     expect(sent[0]).toContain('content="-1"')
   })
 
-  test('shows usage for a bad argument and submits nothing', { options: ON }, async ($, on) => {
+  test('shows usage for a bad argument and submits nothing', async ($, on) => {
+    turnOn(on)
     const sent: string[] = []
     on('prompt.submit', ($, e) => {
       sent.push(e.text)
@@ -29,13 +34,7 @@ describe('/codex-loop', () => {
   })
 })
 
-test('registers no command while disabled', async ($, on) => {
-  const registered: string[] = []
-  on('command.register', ($, e) => {
-    registered.push(JSON.stringify(e))
-    return { value: undefined } as never
-  })
-  on('session.start', () => ({}) as never)
-  await $.session.start({ source: 'startup' } as never).catch(() => undefined)
-  expect(registered).toHaveLength(0)
+test('answers that it is off while disabled', async $ => {
+  const res = await $.command.run({ command: 'codex-loop', args: '42' } as never)
+  expect(JSON.stringify(res)).toContain('/mods')
 })

@@ -1,7 +1,7 @@
 {
   "name": "live-diff",
   "displayName": "Live Diff",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A Dracula-themed pane with the diff of every Edit and Write Claude makes in the session, a file navigator and line numbers.",
   "author": {
     "name": "Lucas Leandro",
@@ -19,12 +19,6 @@
     "dracula"
   ],
   "userConfig": {
-    "enabled": {
-      "type": "boolean",
-      "title": "Enabled",
-      "description": "Turn this mod on. Off by default; toggle it here or in the Mods pane (/mods).",
-      "default": false
-    },
     "contextLines": {
       "type": "number",
       "title": "Context lines",

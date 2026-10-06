@@ -4,6 +4,7 @@ export type ContainerChoice = Record<string, string>
 declare module 'claude-code' {
   interface PluginState {
     'kube-pane': {
+      active: boolean
       context: string
       contexts: string[]
       namespace: string

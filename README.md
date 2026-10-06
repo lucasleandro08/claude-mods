@@ -10,10 +10,10 @@ In Claude Code (terminal or the desktop app's Code tab):
 
 ```
 /plugin marketplace add lucasleandro08/claude-mods
-/plugin install mod-manager@claude-mods
+/plugin install mod-manager@dracula-mods
 ```
 
-Then open `/mods` (or click the `⚙ Mods` chip above the prompt): install the mods you want from there (**Install** or **Install all**) and turn them on. **Every mod ships turned off.** Each mod's other options are in `/config`.
+The marketplace is named `dracula-mods`. Open `/mods` (or click the `⚙ Mods` chip above the prompt; the pane also opens by itself while no mod is on): install the mods you want from there (**Install** or **Install all**) and turn them on. **Every mod ships turned off.** Your choices are saved in `~/.claude/dracula-mods.json`, so they hold in every session; each mod's other options are in `/config`.
 
 ## Mods
 
@@ -30,8 +30,6 @@ Then open `/mods` (or click the `⚙ Mods` chip above the prompt): install the m
 | **aws-profile** | Shows the `AWS_PROFILE` Claude Code runs with above the prompt, in red on production profiles. | — |
 
 ### Options
-
-Every mod below also has an **Enabled** option, off by default, which is what the Mods pane switches.
 
 | Mod | Option | Default |
 | --- | --- | --- |
@@ -85,4 +83,4 @@ Two rules of the hooks runtime shape this layout: `$` can only be passed to func
 
 ---
 
-🇧🇷 **Em português:** mods para o Claude Code com tema Dracula. Instale com `/plugin marketplace add lucasleandro08/claude-mods` e `/plugin install mod-manager@claude-mods`, instale os mods que quiser e ligue cada um em `/mods` (todos vêm desligados); as demais opções ficam em `/config`.
+🇧🇷 **Em português:** mods para o Claude Code com tema Dracula. Instale com `/plugin marketplace add lucasleandro08/claude-mods` e `/plugin install mod-manager@dracula-mods`, instale os mods que quiser e ligue cada um em `/mods` (todos vêm desligados); as demais opções ficam em `/config`.

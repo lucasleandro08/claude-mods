@@ -1,6 +1,9 @@
+import type { On } from 'claude-code'
 import { describe, expect, test } from 'claude-code/testing'
 
-const ON = { enabled: true }
+const STATE = JSON.stringify({ enabled: { 'pr-pane': true } })
+const turnOn = (on: On) =>
+  on('fs.read', ($, e) => (e.path.endsWith('dracula-mods.json') ? { value: STATE } : { deny: 'missing' }))
 
 const SURFACES = ['terminal', 'desktop'] as const
 const PANE = { title: 'PRs', isFocused: false, bodyColumns: 80, placement: 'dock' as const, scroll: { offset: 0, bodyRows: 40 }, view: {} }
@@ -28,7 +31,8 @@ function fakeGh(argv: readonly string[]) {
 
 describe('pr-pane', () => {
   for (const surface of SURFACES) {
-    test(`lists PRs with CI, Codex and integration branch on ${surface}`, { options: ON }, async ($, on) => {
+    test(`lists PRs with CI, Codex and integration branch on ${surface}`, async ($, on) => {
+    turnOn(on)
       on('process.run', ($, e) => fakeGh(e.argv))
       on('env.get', () => ({ value: undefined }))
       on('ui.open', () => ({ value: { isPlaced: true } }))
@@ -43,7 +47,8 @@ describe('pr-pane', () => {
       expect(await pane.find({ text: '✓ staging' })).toBeDefined()
     })
 
-    test(`band chip flags failing CI and keeps the band beneath on ${surface}`, { options: ON }, async ($, on) => {
+    test(`band chip flags failing CI and keeps the band beneath on ${surface}`, async ($, on) => {
+    turnOn(on)
       on('process.run', ($, e) => fakeGh(e.argv))
       on('env.get', () => ({ value: undefined }))
       on('ui.render', { component: 'AbovePrompt' }, ($, e) => {

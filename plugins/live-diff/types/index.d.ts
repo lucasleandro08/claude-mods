@@ -4,6 +4,6 @@ export type Hunk = { id: string; path: string; tool: string; isNewFile: boolean;
 
 declare module 'claude-code' {
   interface PluginState {
-    'live-diff': { hunks: Hunk[]; selected: string | null }
+    'live-diff': { active: boolean; hunks: Hunk[]; selected: string | null }
   }
 }

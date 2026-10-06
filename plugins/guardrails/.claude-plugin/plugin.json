@@ -1,7 +1,7 @@
 {
   "name": "guardrails",
   "displayName": "Guardrails",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Stops risky shell commands before they run: killing ports owned by Docker containers, printing secrets from the environment, rewriting your kubeconfig, and asks before kubectl writes on production contexts.",
   "author": {
     "name": "Lucas Leandro",
@@ -19,12 +19,6 @@
     "secrets"
   ],
   "userConfig": {
-    "enabled": {
-      "type": "boolean",
-      "title": "Enabled",
-      "description": "Turn this mod on. Off by default; toggle it here or in the Mods pane (/mods).",
-      "default": false
-    },
     "productionPattern": {
       "type": "string",
       "title": "Production context pattern",
@@ -55,5 +49,6 @@
       "description": "Block kill/pkill on ports published by running Docker containers, and killing the Docker engine.",
       "default": true
     }
-  }
+  },
+  "types": "./types/index.d.ts"
 }

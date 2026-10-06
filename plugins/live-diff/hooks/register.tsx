@@ -5,6 +5,23 @@ import type { Hunk } from '../types'
 import { diffLines, hasChanges, lineOf } from '../src/diff'
 import { DiffChip } from '../ui/chip'
 import { DiffPane, PaneError } from '../ui/pane'
+import { isOn, OFF_TEXT, parseState, statePath } from '../src/shared/toggle'
+
+const MOD = 'live-diff'
+const CHECK_MS = 5000
+const active = atom({ plugin: 'live-diff', key: 'active' } as const, false)
+let checkedAt = 0
+
+async function isActive($: EngineInterface) {
+  if (Date.now() - checkedAt > CHECK_MS) {
+    checkedAt = Date.now()
+    const home = await $.env.get('HOME').catch(() => undefined)
+    const text = await $.fs.read(statePath(home)).catch(() => '')
+    const on = isOn(parseState(text), MOD)
+    await update($, active, prev => (prev === on ? prev : on))
+  }
+  return read($, active)
+}
 
 const PANE_ID = 'live-diff'
 
@@ -29,12 +46,12 @@ async function record($: EngineInterface, hunk: Hunk, maxEdits: number) {
 }
 
 export const register: Register = (on, options) => {
-  if (options.enabled !== true) return
-
   const contextLines = Number(options.contextLines ?? 2)
   const maxEdits = Number(options.maxEdits ?? 100)
 
   on('session.start', async ($, e, next) => {
+    void isActive($)
+    $.clock.every(CHECK_MS, () => void isActive($))
     await $.command.register({ name: 'diff', description: 'Open the live diff pane' })
     await $.command.register({ name: 'diff-clear', description: 'Clear the live diff pane' })
 
@@ -42,16 +59,19 @@ export const register: Register = (on, options) => {
   })
 
   on('command.run', { command: 'diff' }, async $ => {
+    if (!(await isActive($))) return { text: OFF_TEXT }
     await openPane($)
     return { text: 'Diff pane opened.' }
   })
 
   on('command.run', { command: 'diff-clear' }, async $ => {
+    if (!(await isActive($))) return { text: OFF_TEXT }
     await update($, hunks, () => [])
     return { text: 'Diff pane cleared.' }
   })
 
   on('tool.call', { tool: 'Edit' }, async ($, e, next) => {
+    if (!(await isActive($))) return next(e)
     const before = await readOrUndefined($, e.file_path)
     const ran = await next(e)
     if (ran.deny !== undefined || ran.isError) return ran
@@ -67,6 +87,7 @@ export const register: Register = (on, options) => {
   })
 
   on('tool.call', { tool: 'Write' }, async ($, e, next) => {
+    if (!(await isActive($))) return next(e)
     const before = await readOrUndefined($, e.file_path)
     const ran = await next(e)
     if (ran.deny !== undefined || ran.isError) return ran
@@ -82,6 +103,7 @@ export const register: Register = (on, options) => {
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    if (!(await read($, active))) return next(e)
     const rest = await next(e)
     if (e.props.hasSurvey) return rest
 
@@ -98,6 +120,9 @@ export const register: Register = (on, options) => {
 
   on('ui.render', { component: 'Pane', requestId: PANE_ID }, async ($, e) => {
     const ui = $.ui.resolve(e)
+    if (!(await read($, active))) {
+      return <ui.Box padding={1}><ui.Text color="#6272a4">{OFF_TEXT}</ui.Text></ui.Box>
+    }
     try {
       return (
         <DiffPane

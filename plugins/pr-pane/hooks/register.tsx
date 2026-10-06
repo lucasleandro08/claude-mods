@@ -6,6 +6,23 @@ import { codexState, isContained, summarizeChecks, type Check, type SearchItem }
 import { binaryCandidates } from '../src/shared/bin'
 import { PrChip } from '../ui/chip'
 import { PrPane } from '../ui/pane'
+import { isOn, OFF_TEXT, parseState, statePath } from '../src/shared/toggle'
+
+const MOD = 'pr-pane'
+const CHECK_MS = 5000
+const active = atom({ plugin: 'pr-pane', key: 'active' } as const, false)
+let checkedAt = 0
+
+async function isActive($: EngineInterface) {
+  if (Date.now() - checkedAt > CHECK_MS) {
+    checkedAt = Date.now()
+    const home = await $.env.get('HOME').catch(() => undefined)
+    const text = await $.fs.read(statePath(home)).catch(() => '')
+    const on = isOn(parseState(text), MOD)
+    await update($, active, prev => (prev === on ? prev : on))
+  }
+  return read($, active)
+}
 
 const PANE_ID = 'pr-pane'
 const CONCURRENCY = 4
@@ -106,29 +123,32 @@ async function openPane($: EngineInterface, settings: Settings) {
 }
 
 export const register: Register = (on, options) => {
-  if (options.enabled !== true) return
-
   const settings = readSettings(options)
 
   on('session.start', async ($, e, next) => {
+    void isActive($)
+    $.clock.every(CHECK_MS, () => void isActive($))
     await $.command.register({ name: 'prs', description: 'Open the pull requests pane' })
-    void refresh($, settings)
-    $.clock.every(settings.refreshMs, () => void refresh($, settings))
+    void isActive($).then(enabled => (enabled ? refresh($, settings) : undefined))
+    $.clock.every(settings.refreshMs, () => void isActive($).then(enabled => (enabled ? refresh($, settings) : undefined)))
 
     return next(e)
   })
 
   on('command.run', { command: 'prs' }, async $ => {
+    if (!(await isActive($))) return { text: OFF_TEXT }
     await openPane($, settings)
     return { text: 'PRs pane opened.' }
   })
 
   on('ui.close', async ($, e, next) => {
+    if (!(await isActive($))) return next(e)
     if (e.id === PANE_ID) await update($, isOpen, () => false)
     return next(e)
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    if (!(await read($, active))) return next(e)
     const rest = await next(e)
     const list = await read($, rows)
     if (e.props.hasSurvey || list.length === 0 || (await read($, isOpen))) return rest
@@ -142,9 +162,13 @@ export const register: Register = (on, options) => {
     )
   })
 
-  on('ui.render', { component: 'Pane', requestId: PANE_ID }, async ($, e) => (
-    <PrPane
-      ui={$.ui.resolve(e)}
+  on('ui.render', { component: 'Pane', requestId: PANE_ID }, async ($, e) => {
+    const ui = $.ui.resolve(e)
+    if (!(await read($, active))) {
+      return <ui.Box padding={1}><ui.Text color="#6272a4">{OFF_TEXT}</ui.Text></ui.Box>
+    }
+    return <PrPane
+      ui={ui}
       rows={await read($, rows)}
       isLoading={await read($, isLoading)}
       error={await read($, lastError)}
@@ -152,5 +176,5 @@ export const register: Register = (on, options) => {
       integrationBranch={settings.integrationBranch}
       onRefresh={() => refresh($, settings)}
     />
-  ))
+  })
 }

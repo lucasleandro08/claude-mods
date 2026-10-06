@@ -1,6 +1,24 @@
+import { atom, read, update } from 'claude-code'
 import type { EngineInterface, PluginOptions, Register } from 'claude-code'
 
 import { describePreview, lines, protectedBranches, testFiles, type Preview } from '../src/preview'
+import { isOn, OFF_TEXT, parseState, statePath } from '../src/shared/toggle'
+
+const MOD = 'promote-branch'
+const CHECK_MS = 5000
+const active = atom({ plugin: 'promote-branch', key: 'active' } as const, false)
+let checkedAt = 0
+
+async function isActive($: EngineInterface) {
+  if (Date.now() - checkedAt > CHECK_MS) {
+    checkedAt = Date.now()
+    const home = await $.env.get('HOME').catch(() => undefined)
+    const text = await $.fs.read(statePath(home)).catch(() => '')
+    const on = isOn(parseState(text), MOD)
+    await update($, active, prev => (prev === on ? prev : on))
+  }
+  return read($, active)
+}
 
 type Settings = { target: string; protectedList: string[] }
 
@@ -69,8 +87,6 @@ async function mergeAndPush($: EngineInterface, settings: Settings) {
 }
 
 export const register: Register = (on, options) => {
-  if (options.enabled !== true) return
-
   const settings = readSettings(options)
 
   on('session.start', async ($, e, next) => {
@@ -82,6 +98,7 @@ export const register: Register = (on, options) => {
   })
 
   on('command.run', { command: 'promote' }, async ($, e) => {
+    if (!(await isActive($))) return { text: OFF_TEXT }
     if (e.args.trim() === 'go') return { text: await mergeAndPush($, settings) }
 
     const p = await preview($, settings)

@@ -1,6 +1,9 @@
+import type { On } from 'claude-code'
 import { describe, expect, test } from 'claude-code/testing'
 
-const ON = { enabled: true }
+const STATE = JSON.stringify({ enabled: { 'promote-branch': true } })
+const turnOn = (on: On) =>
+  on('fs.read', ($, e) => (e.path.endsWith('dracula-mods.json') ? { value: STATE } : { deny: 'missing' }))
 
 const out = (stdout: string, exitCode = 0) => ({ value: { exitCode, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } })
 
@@ -22,7 +25,8 @@ function fakeGit(calls: string[], opts: { branch?: string; dirty?: string; merge
 }
 
 describe('/promote', () => {
-  test('previews without pushing', { options: ON }, async ($, on) => {
+  test('previews without pushing', async ($, on) => {
+    turnOn(on)
     const calls: string[] = []
     on('process.run', ($, e) => fakeGit(calls)(e.argv))
     const res = await $.command.run({ command: 'promote', args: '' } as never)
@@ -31,7 +35,8 @@ describe('/promote', () => {
     expect(calls.some(c => c.includes('push'))).toBe(false)
   })
 
-  test('go merges in a temp worktree and pushes to the target branch', { options: ON }, async ($, on) => {
+  test('go merges in a temp worktree and pushes to the target branch', async ($, on) => {
+    turnOn(on)
     const calls: string[] = []
     on('process.run', ($, e) => fakeGit(calls)(e.argv))
     const res = await $.command.run({ command: 'promote', args: 'go' } as never)
@@ -41,14 +46,16 @@ describe('/promote', () => {
     expect(calls).toContain('git worktree remove --force /tmp/wt')
   })
 
-  test('go refuses a dirty tree and a protected branch', { options: ON }, async ($, on) => {
+  test('go refuses a dirty tree and a protected branch', async ($, on) => {
+    turnOn(on)
     const calls: string[] = []
     on('process.run', ($, e) => fakeGit(calls, { dirty: ' M app/a.ts' })(e.argv))
     expect(JSON.stringify(await $.command.run({ command: 'promote', args: 'go' } as never))).toContain('Uncommitted')
     expect(calls.some(c => c.includes('push'))).toBe(false)
   })
 
-  test('go aborts on conflict without pushing', { options: ON }, async ($, on) => {
+  test('go aborts on conflict without pushing', async ($, on) => {
+    turnOn(on)
     const calls: string[] = []
     on('process.run', ($, e) => fakeGit(calls, { mergeFails: true })(e.argv))
     const res = await $.command.run({ command: 'promote', args: 'go' } as never)
@@ -58,27 +65,23 @@ describe('/promote', () => {
     expect(calls).toContain('git worktree remove --force /tmp/wt')
   })
 
-  test('refuses to run from main', { options: ON }, async ($, on) => {
+  test('refuses to run from main', async ($, on) => {
+    turnOn(on)
     const calls: string[] = []
     on('process.run', ($, e) => fakeGit(calls, { branch: 'main' })(e.argv))
     expect(JSON.stringify(await $.command.run({ command: 'promote', args: 'go' } as never))).toContain('Current branch is main')
   })
 })
 
-test('target branch is configurable', { options: { ...ON, targetBranch: 'homolog' } }, async ($, on) => {
+test('target branch is configurable', { options: { targetBranch: 'homolog' } }, async ($, on) => {
+    turnOn(on)
   const calls: string[] = []
   on('process.run', ($, e) => fakeGit(calls)(e.argv))
   await $.command.run({ command: 'promote', args: 'go' } as never)
   expect(calls).toContain('git -C /tmp/wt push origin HEAD:homolog')
 })
 
-test('registers no command while disabled', async ($, on) => {
-  const registered: string[] = []
-  on('command.register', ($, e) => {
-    registered.push(JSON.stringify(e))
-    return { value: undefined } as never
-  })
-  on('session.start', () => ({}) as never)
-  await $.session.start({ source: 'startup' } as never).catch(() => undefined)
-  expect(registered).toHaveLength(0)
+test('answers that it is off while disabled', async $ => {
+  const res = await $.command.run({ command: 'promote', args: '' } as never)
+  expect(JSON.stringify(res)).toContain('/mods')
 })

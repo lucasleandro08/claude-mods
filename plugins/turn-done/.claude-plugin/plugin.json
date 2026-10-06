@@ -1,7 +1,7 @@
 {
   "name": "turn-done",
   "displayName": "Turn Done",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A toast and a chime when a long Claude turn finishes, so you can look away while it works.",
   "author": {
     "name": "Lucas Leandro",
@@ -17,12 +17,6 @@
     "sound"
   ],
   "userConfig": {
-    "enabled": {
-      "type": "boolean",
-      "title": "Enabled",
-      "description": "Turn this mod on. Off by default; toggle it here or in the Mods pane (/mods).",
-      "default": false
-    },
     "thresholdSeconds": {
       "type": "number",
       "title": "Long turn (seconds)",
@@ -35,5 +29,6 @@
       "description": "Play the chime with the toast (macOS).",
       "default": true
     }
-  }
+  },
+  "types": "./types/index.d.ts"
 }

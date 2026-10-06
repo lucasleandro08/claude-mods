@@ -1,5 +1,5 @@
 import type { Notice } from '../types'
-import { MARKETPLACE } from './catalog'
+import { MARKETPLACE } from './shared/toggle'
 
 const CLAUDE_DIRS = ['.local/bin', '.claude/local', 'bin']
 

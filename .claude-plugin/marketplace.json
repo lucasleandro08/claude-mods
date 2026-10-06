@@ -1,5 +1,5 @@
 {
-  "name": "claude-mods",
+  "name": "dracula-mods",
   "owner": {
     "name": "Lucas Leandro",
     "url": "https://github.com/lucasleandro08"
@@ -9,8 +9,8 @@
     {
       "name": "mod-manager",
       "source": "./plugins/mod-manager",
-      "description": "A Dracula-themed pane to install the claude-mods and turn them on and off. Every other mod ships disabled; this one is on and lists them all.",
-      "version": "1.1.0",
+      "description": "A Dracula-themed pane to install the Dracula mods and turn them on and off. Every other mod ships off; this one lists them all and remembers your choice across sessions.",
+      "version": "2.0.0",
       "homepage": "https://github.com/lucasleandro08/claude-mods",
       "repository": "https://github.com/lucasleandro08/claude-mods"
     },
@@ -18,7 +18,7 @@
       "name": "live-diff",
       "source": "./plugins/live-diff",
       "description": "A Dracula-themed pane with the diff of every Edit and Write Claude makes in the session, a file navigator and line numbers.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "homepage": "https://github.com/lucasleandro08/claude-mods",
       "repository": "https://github.com/lucasleandro08/claude-mods"
     },
@@ -26,7 +26,7 @@
       "name": "kube-pane",
       "source": "./plugins/kube-pane",
       "description": "A kubectl context chip above the prompt and a Dracula-themed pods pane: switch context for Claude's session without touching your kubeconfig, filter pods, and open a shell in any container from the app's Terminal.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "homepage": "https://github.com/lucasleandro08/claude-mods",
       "repository": "https://github.com/lucasleandro08/claude-mods"
     },
@@ -34,7 +34,7 @@
       "name": "pr-pane",
       "source": "./plugins/pr-pane",
       "description": "Your open pull requests in a Dracula-themed pane: CI, Codex review and whether each one already reached your integration branch, plus a chip above the prompt that flags failing CI.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "homepage": "https://github.com/lucasleandro08/claude-mods",
       "repository": "https://github.com/lucasleandro08/claude-mods"
     },
@@ -42,7 +42,7 @@
       "name": "guardrails",
       "source": "./plugins/guardrails",
       "description": "Stops risky shell commands before they run: killing ports owned by Docker containers, printing secrets from the environment, rewriting your kubeconfig, and asks before kubectl writes on production contexts.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "homepage": "https://github.com/lucasleandro08/claude-mods",
       "repository": "https://github.com/lucasleandro08/claude-mods"
     },
@@ -50,7 +50,7 @@
       "name": "promote-branch",
       "source": "./plugins/promote-branch",
       "description": "/promote previews merging the current branch into an integration branch (staging, homolog, develop); /promote go does a full merge in a temporary worktree and pushes it, never touching your checkout.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "homepage": "https://github.com/lucasleandro08/claude-mods",
       "repository": "https://github.com/lucasleandro08/claude-mods"
     },
@@ -58,7 +58,7 @@
       "name": "codex-loop",
       "source": "./plugins/codex-loop",
       "description": "/codex-loop <PR> hands Claude a review loop with the Codex GitHub bot: request a review, weigh each finding, fix or 👎 it, reply, resolve and repeat until 👍.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "homepage": "https://github.com/lucasleandro08/claude-mods",
       "repository": "https://github.com/lucasleandro08/claude-mods"
     },
@@ -66,7 +66,7 @@
       "name": "turn-done",
       "source": "./plugins/turn-done",
       "description": "A toast and a chime when a long Claude turn finishes, so you can look away while it works.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "homepage": "https://github.com/lucasleandro08/claude-mods",
       "repository": "https://github.com/lucasleandro08/claude-mods"
     },
@@ -74,7 +74,7 @@
       "name": "aws-profile",
       "source": "./plugins/aws-profile",
       "description": "Shows the AWS_PROFILE Claude Code runs with above the prompt, in red when it looks like production.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "homepage": "https://github.com/lucasleandro08/claude-mods",
       "repository": "https://github.com/lucasleandro08/claude-mods"
     }
