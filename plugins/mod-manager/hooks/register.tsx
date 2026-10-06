@@ -2,21 +2,23 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { ModEntry, Notice } from '../types'
-import { enabledKey, entries, installCommand } from '../src/catalog'
+import { entries, installCommand } from '../src/catalog'
 import { claudeCandidates, installArgs, readInstallResult } from '../src/install'
 import { ModsChip } from '../ui/chip'
 import { ModsPane } from '../ui/pane'
 
 const PANE_ID = 'mod-manager'
 
-const revision = atom({ plugin: 'mod-manager', key: 'revision' } as const, 0)
+const mods = atom({ plugin: 'mod-manager', key: 'mods' } as const, [] as ModEntry[])
+const REFRESH_MS = 30_000
 const lastError = atom({ plugin: 'mod-manager', key: 'lastError' } as const, '')
 const installing = atom({ plugin: 'mod-manager', key: 'installing' } as const, [])
 const notices = atom({ plugin: 'mod-manager', key: 'notices' } as const, {})
 
-async function loadMods($: EngineInterface) {
-  await read($, revision)
-  return entries(await $.config.list())
+async function refreshMods($: EngineInterface) {
+  const next = entries(await $.config.list())
+  await update($, mods, prev => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next))
+  return next
 }
 
 async function setNotice($: EngineInterface, name: string, notice: Notice) {
@@ -24,9 +26,9 @@ async function setNotice($: EngineInterface, name: string, notice: Notice) {
 }
 
 async function toggle($: EngineInterface, mod: ModEntry) {
-  const result = await $.config.set({ key: enabledKey(mod.name), value: mod.state !== 'on' })
+  const result = await $.config.set({ key: mod.key, value: mod.state !== 'on' })
   await update($, lastError, () => (result.deny === undefined ? '' : `${mod.title}: ${result.deny}`))
-  await update($, revision, n => n + 1)
+  await refreshMods($)
 }
 
 async function runInstall($: EngineInterface, claudePath: string, name: string) {
@@ -60,7 +62,7 @@ async function install($: EngineInterface, claudePath: string, name: string) {
     return false
   } finally {
     await update($, installing, list => list.filter(n => n !== name))
-    await update($, revision, n => n + 1)
+    await refreshMods($)
   }
 }
 
@@ -72,16 +74,24 @@ async function installAll($: EngineInterface, claudePath: string, names: readonl
 }
 
 async function openPane($: EngineInterface) {
-  await update($, revision, n => n + 1)
+  await refreshMods($)
   await $.ui.open({ id: PANE_ID, title: 'Mods' })
+}
+
+async function start($: EngineInterface, openOnStart: boolean) {
+  const current = await refreshMods($)
+  if (openOnStart && !current.some(m => m.state === 'on')) await $.ui.open({ id: PANE_ID, title: 'Mods' })
 }
 
 export const register: Register = (on, options) => {
   const showChip = options.showChip !== false
   const claudePath = String(options.claudePath ?? '')
+  const openOnStart = options.openOnStart !== false
 
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'mods', description: 'Install the claude-mods and turn them on and off' })
+    void start($, openOnStart).catch(() => undefined)
+    $.clock.every(REFRESH_MS, () => void refreshMods($).catch(() => undefined))
     return next(e)
   })
 
@@ -94,11 +104,11 @@ export const register: Register = (on, options) => {
     const rest = await next(e)
     if (!showChip || e.props.hasSurvey) return rest
 
-    const mods = await loadMods($)
+    const list = await read($, mods)
     const ui = $.ui.resolve(e)
     return (
       <ui.Box flexDirection="column">
-        <ModsChip ui={ui} on={mods.filter(m => m.state === 'on').length} total={mods.length} onOpen={() => openPane($)} />
+        <ModsChip ui={ui} on={list.filter(m => m.state === 'on').length} total={list.length || 8} onOpen={() => openPane($)} />
         {rest}
       </ui.Box>
     )
@@ -107,7 +117,7 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'Pane', requestId: PANE_ID }, async ($, e) => (
     <ModsPane
       ui={$.ui.resolve(e)}
-      mods={await loadMods($)}
+      mods={await read($, mods)}
       error={await read($, lastError)}
       installing={await read($, installing)}
       notices={await read($, notices)}

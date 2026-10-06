@@ -1,7 +1,7 @@
 {
   "name": "mod-manager",
   "displayName": "Mod Manager",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A Dracula-themed pane to install the claude-mods and turn them on and off. Every other mod ships disabled; this one is on and lists them all.",
   "author": {
     "name": "Lucas Leandro",
@@ -30,6 +30,12 @@
       "title": "claude path",
       "description": "Full path to the claude CLI, used by the Install buttons when it is not on the PATH Claude Code sees.",
       "default": ""
+    },
+    "openOnStart": {
+      "type": "boolean",
+      "title": "Open on start until a mod is on",
+      "description": "Open the Mods pane when a session starts while no mod is turned on yet.",
+      "default": true
     }
   }
 }

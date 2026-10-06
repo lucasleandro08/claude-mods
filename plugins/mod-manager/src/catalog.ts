@@ -13,17 +13,20 @@ export const CATALOG = [
   { name: 'aws-profile', title: 'AWS Profile', summary: 'Shows AWS_PROFILE above the prompt' },
 ] as const
 
-export type ConfigRowLike = { key: string; value: unknown; isLocked: boolean }
+export type ConfigRowLike = { key: string; value: unknown; isLocked: boolean; provider?: { plugin: string } }
 
-export function enabledKey(name: string) {
-  return `${name}.enabled`
+// A plugin loaded from a folder names its rows `<name>.<field>`; one installed from a marketplace `<name>@<marketplace>.<field>`
+export function isEnabledRow(row: ConfigRowLike, name: string) {
+  if (!row.key.endsWith('.enabled')) return false
+  const owner = row.key.slice(0, -'.enabled'.length)
+  return owner === name || owner.startsWith(`${name}@`) || row.provider?.plugin === name
 }
 
 export function entries(rows: readonly ConfigRowLike[]): ModEntry[] {
   return CATALOG.map(mod => {
-    const row = rows.find(r => r.key === enabledKey(mod.name))
+    const row = rows.find(r => isEnabledRow(r, mod.name))
     const state: ModState = !row ? 'missing' : row.isLocked ? 'locked' : row.value === true ? 'on' : 'off'
-    return { ...mod, state }
+    return { ...mod, state, key: row?.key ?? `${mod.name}.enabled` }
   })
 }
 

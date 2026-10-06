@@ -35,7 +35,7 @@ Every mod below also has an **Enabled** option, off by default, which is what th
 
 | Mod | Option | Default |
 | --- | --- | --- |
-| mod-manager | Show the Mods chip · claude CLI path | on · PATH |
+| mod-manager | Show the Mods chip · open on start until a mod is on · claude CLI path | on · on · PATH |
 | kube-pane | Production context pattern · default namespace · refresh interval · pods per page · kubectl path | `prod` · `default` · 15 s · 25 · PATH |
 | pr-pane | Integration branch · Codex bot login · refresh interval · PRs to load · gh path | `staging` · `chatgpt-codex-connector[bot]` · 5 min · 50 · PATH |
 | guardrails | Production pattern · confirm production writes · block kubeconfig changes · block printing secrets · protect Docker ports | `prod` · on · on · on · on |
