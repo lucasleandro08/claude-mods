@@ -158,7 +158,11 @@ export const register: Register = (on, options) => {
 
   on('session.start', async ($, e, next) => {
     void isActive($)
-    $.clock.every(CHECK_MS, () => void isActive($))
+    $.clock.every(CHECK_MS, () => {
+      void Promise.all([isActive($), read($, context)])
+        .then(([enabled, ctx]) => (enabled && ctx === '' ? loadContexts($, settings) : undefined))
+        .catch(() => undefined)
+    })
     await $.command.register({ name: 'pods', description: 'Open the pods pane for the session kubectl context' })
     void isActive($).then(enabled => (enabled ? loadContexts($, settings) : undefined)).catch(() => undefined)
     $.clock.every(settings.refreshMs, () => {
@@ -190,7 +194,7 @@ export const register: Register = (on, options) => {
     if (!(await read($, active))) return next(e)
     const rest = await next(e)
     const ctx = await read($, context)
-    if (e.props.hasSurvey || ctx === '') return rest
+    if (e.props.hasSurvey) return rest
 
     const ui = $.ui.resolve(e)
     return (

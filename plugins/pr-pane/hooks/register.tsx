@@ -151,7 +151,7 @@ export const register: Register = (on, options) => {
     if (!(await read($, active))) return next(e)
     const rest = await next(e)
     const list = await read($, rows)
-    if (e.props.hasSurvey || list.length === 0 || (await read($, isOpen))) return rest
+    if (e.props.hasSurvey || (await read($, isOpen))) return rest
 
     const ui = $.ui.resolve(e)
     return (

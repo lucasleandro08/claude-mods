@@ -13,7 +13,7 @@ export function PrChip({ ui, rows, onOpen }: { ui: Ui; rows: PrRow[]; onOpen: ()
   return (
     <Box flexDirection="row" gap={1} alignItems="center" marginBottom={1}>
       <Text color={DRACULA.purple} bold>⑂</Text>
-      <Button key="open-prs" label={`PRs · ${rows.length}`} dimColor onPress={onOpen} />
+      <Button key="open-prs" label={rows.length === 0 ? 'PRs' : `PRs · ${rows.length}`} dimColor onPress={onOpen} />
       {failing > 0 && <Text color={DRACULA.red}>✗ {failing} CI</Text>}
       {findings > 0 && <Text color={DRACULA.orange}>⚠ {findings} Codex</Text>}
     </Box>
