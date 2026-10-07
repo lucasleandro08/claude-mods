@@ -1,5 +1,6 @@
 import type { Elements, RenderSurface } from 'claude-code'
 
+import type { Chip } from '../src/shared/chip'
 import { DRACULA } from '../src/shared/theme'
 
 type Ui = Elements[RenderSurface]
@@ -17,4 +18,16 @@ export function DockerChip({ ui, running, stale, unhealthy, isDown, onOpen }: Ch
       {stale > 0 && <Text color={DRACULA.orange}>⚠ {stale} older than checkout</Text>}
     </Box>
   )
+}
+
+export function dockerChip(running: number, stale: number, unhealthy: number, isDown: boolean): Chip {
+  return {
+    icon: '🐳',
+    tone: 'info',
+    parts: [
+      { text: isDown ? 'docker off' : `${running} up`, tone: 'text', action: 'open' },
+      ...(unhealthy > 0 ? [{ text: `✗ ${unhealthy} unhealthy`, tone: 'bad' as const }] : []),
+      ...(stale > 0 ? [{ text: `⚠ ${stale} stale`, tone: 'warn' as const }] : []),
+    ],
+  }
 }

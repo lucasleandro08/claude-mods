@@ -3,9 +3,10 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { Hunk } from '../types'
 import { diffLines, hasChanges, lineOf } from '../src/diff'
-import { DiffChip } from '../ui/chip'
+import { DiffChip, diffChip } from '../ui/chip'
 import { DiffPane, PaneError } from '../ui/pane'
 import { isOn, OFF_TEXT, parseState, statePath } from '../src/shared/toggle'
+import { barIsLive, sameChip, type Chip, type ChipPress } from '../src/shared/chip'
 
 const MOD = 'live-diff'
 const CHECK_MS = 5000
@@ -21,6 +22,17 @@ async function isActive($: EngineInterface) {
     await update($, active, prev => (prev === on ? prev : on))
   }
   return read($, active)
+}
+
+const chip = atom({ plugin: 'live-diff', key: 'chip' } as const, null)
+
+async function barOwnsChips($: EngineInterface) {
+  const { value } = await $.state.get({ plugin: 'mod-manager', key: 'bar' })
+  return barIsLive(value, Date.now())
+}
+
+async function setChip($: EngineInterface, next: Chip | null) {
+  await update($, chip, prev => (sameChip(prev, next) ? prev : next))
 }
 
 const PANE_ID = 'live-diff'
@@ -43,11 +55,25 @@ async function openPane($: EngineInterface) {
 async function record($: EngineInterface, hunk: Hunk, maxEdits: number) {
   if (!hasChanges(hunk)) return
   await update($, hunks, list => [hunk, ...list].slice(0, maxEdits))
+  await publishChip($)
+}
+
+async function publishChip($: EngineInterface) {
+  await setChip($, (await read($, active)) ? diffChip((await read($, hunks)).length) : null)
 }
 
 export const register: Register = (on, options) => {
   const contextLines = Number(options.contextLines ?? 2)
   const maxEdits = Number(options.maxEdits ?? 100)
+
+  on('state.set', async ($, e, next) => {
+    const ran = await next(e)
+    if (e.plugin === 'mod-manager' && e.key === 'press') {
+      const pressed = e.value as ChipPress | null
+      if (pressed?.plugin === MOD && (await isActive($))) await openPane($)
+    }
+    return ran
+  })
 
   on('session.start', async ($, e, next) => {
     void isActive($)
@@ -55,6 +81,7 @@ export const register: Register = (on, options) => {
     await $.command.register({ name: 'diff', description: 'Open the live diff pane' })
     await $.command.register({ name: 'diff-clear', description: 'Clear the live diff pane' })
 
+    $.clock.every(CHECK_MS, () => void publishChip($).catch(() => undefined))
     return next(e)
   })
 
@@ -103,7 +130,7 @@ export const register: Register = (on, options) => {
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (!(await read($, active))) return next(e)
+    if (!(await read($, active)) || (await barOwnsChips($))) return next(e)
     const rest = await next(e)
     if (e.props.hasSurvey) return rest
 

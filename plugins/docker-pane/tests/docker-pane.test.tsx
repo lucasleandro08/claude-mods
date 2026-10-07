@@ -1,5 +1,6 @@
 import type { On } from 'claude-code'
-import { describe, expect, test } from 'claude-code/testing'
+import { describe, expect, mock, test } from 'claude-code/testing'
+import type { Register } from 'claude-code'
 
 const STATE = JSON.stringify({ enabled: { 'docker-pane': true } })
 const SURFACES = ['terminal', 'desktop'] as const
@@ -27,10 +28,13 @@ const PS = [
   container('shop-redis-1', 'redis', 'exited', 'Exited (0) 3 hours ago', 600_000),
 ].join('\n')
 
-function setup(on: On, calls: string[]) {
+function setup(on: On, calls: string[], opened?: string[]) {
   on('fs.read', ($, e) => (e.path.endsWith('dracula-mods.json') ? { value: STATE } : { deny: 'missing' }))
   on('env.get', () => ({ value: undefined }))
-  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('ui.open', ($, e) => {
+    opened?.push(e.id)
+    return { value: { isPlaced: true } }
+  })
   on('process.run', ($, e) => {
     const args = e.argv.join(' ')
     calls.push(args)
@@ -41,7 +45,40 @@ function setup(on: On, calls: string[]) {
   })
 }
 
+const fakeManager: Register = on => {
+  on('session.start', async ($, e, next) => {
+    await $.state.set({ plugin: 'mod-manager', key: 'bar' }, Date.now())
+    return next(e)
+  })
+  on('command.run', { command: 'docker-chip' }, async $ => ({ text: JSON.stringify((await $.state.get({ plugin: 'docker-pane', key: 'chip' })).value) }))
+  on('command.run', { command: 'press-docker' }, async $ => {
+    await $.state.set({ plugin: 'mod-manager', key: 'press' }, { plugin: 'docker-pane', action: 'open', at: Date.now() })
+    return { text: 'pressed' }
+  })
+}
+
 describe('docker-pane', () => {
+  test('hands its chip to the mods bar and opens on a press from it', { plugins: [{ name: 'mod-manager', register: fakeManager }] }, async ($, on) => {
+    const opened: string[] = []
+    setup(on, [], opened)
+    on('command.register', () => ({ value: undefined }) as never)
+    on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+      const { Text } = $.ui.resolve(e)
+      return <Text>beneath</Text>
+    })
+    const clock = mock.clock(on, { now: Date.now() })
+    await $.session.start({ source: 'startup', cwd: '/tmp' } as never).catch(() => undefined)
+    await clock.advance(5000)
+
+    const band = await $.ui.mount({ plugin: 'docker-pane', surface: 'desktop', component: 'AbovePrompt', props: BAND })
+    expect(await band.find({ type: 'Button', key: 'open-docker' })).toBeUndefined()
+    const { text } = await $.command.run({ command: 'docker-chip', args: '' } as never)
+    expect(text).toContain('"2 up"')
+
+    await $.command.run({ command: 'press-docker', args: '' } as never)
+    expect(opened).toContain('docker-pane')
+  })
+
   for (const surface of SURFACES) {
     test(`chip counts containers and keeps the band beneath on ${surface}`, async ($, on) => {
       setup(on, [])

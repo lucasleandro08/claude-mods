@@ -1,7 +1,7 @@
 {
   "name": "deploy-watch",
   "displayName": "Deploy Watch",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Watches AWS CodeBuild projects: a chip above the prompt with the last build, a warning when a push to the deploy branch started no build, and a pane with recent builds, their logs in the app's Terminal and a Start build button.",
   "author": {
     "name": "Lucas Leandro",

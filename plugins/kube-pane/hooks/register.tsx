@@ -4,9 +4,10 @@ import type { EngineInterface, PluginOptions, Register } from 'claude-code'
 import type { ContainerChoice, PodRow } from '../types'
 import { pickNamespace, shellCommand, shortContext, toRows, withContext, type PodJson } from '../src/pods'
 import { binaryCandidates } from '../src/shared/bin'
-import { ContextChip } from '../ui/chip'
+import { ContextChip, contextChip } from '../ui/chip'
 import { PaneError, PodsPane } from '../ui/pane'
 import { isOn, OFF_TEXT, parseState, statePath } from '../src/shared/toggle'
+import { barIsLive, sameChip, type Chip, type ChipPress } from '../src/shared/chip'
 
 const MOD = 'kube-pane'
 const CHECK_MS = 5000
@@ -22,6 +23,17 @@ async function isActive($: EngineInterface) {
     await update($, active, prev => (prev === on ? prev : on))
   }
   return read($, active)
+}
+
+const chip = atom({ plugin: 'kube-pane', key: 'chip' } as const, null)
+
+async function barOwnsChips($: EngineInterface) {
+  const { value } = await $.state.get({ plugin: 'mod-manager', key: 'bar' })
+  return barIsLive(value, Date.now())
+}
+
+async function setChip($: EngineInterface, next: Chip | null) {
+  await update($, chip, prev => (sameChip(prev, next) ? prev : next))
 }
 
 const PANE_ID = 'kube-pane'
@@ -153,8 +165,22 @@ async function openShell($: EngineInterface, settings: Settings, pod: PodRow) {
   }
 }
 
+async function publishChip($: EngineInterface, settings: Settings) {
+  const ctx = await read($, context)
+  await setChip($, (await read($, active)) ? contextChip(ctx, settings.production.test(ctx)) : null)
+}
+
 export const register: Register = (on, options) => {
   const settings = readSettings(options)
+
+  on('state.set', async ($, e, next) => {
+    const ran = await next(e)
+    if (e.plugin === 'mod-manager' && e.key === 'press') {
+      const pressed = e.value as ChipPress | null
+      if (pressed?.plugin === MOD && (await isActive($))) await openPane($, settings)
+    }
+    return ran
+  })
 
   on('session.start', async ($, e, next) => {
     void isActive($)
@@ -169,6 +195,7 @@ export const register: Register = (on, options) => {
       void Promise.all([isActive($), read($, isOpen)]).then(([enabled, open]) => (enabled && open ? loadPods($, settings) : undefined))
     })
 
+    $.clock.every(CHECK_MS, () => void publishChip($, settings).catch(() => undefined))
     return next(e)
   })
 
@@ -191,7 +218,7 @@ export const register: Register = (on, options) => {
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (!(await read($, active))) return next(e)
+    if (!(await read($, active)) || (await barOwnsChips($))) return next(e)
     const rest = await next(e)
     const ctx = await read($, context)
     if (e.props.hasSurvey) return rest

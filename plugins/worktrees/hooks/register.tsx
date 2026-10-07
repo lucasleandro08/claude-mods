@@ -5,7 +5,8 @@ import type { RepoRow, WorktreeRow } from '../types'
 import { isMerged, parseBranchList, parsePorcelain, parseRoots, parseStatusCount, prsByBranch, type PullRequest } from '../src/worktrees'
 import { binaryCandidates } from '../src/shared/bin'
 import { isOn, OFF_TEXT, parseState, statePath } from '../src/shared/toggle'
-import { WorktreesChip } from '../ui/chip'
+import { barIsLive, sameChip, type Chip, type ChipPress } from '../src/shared/chip'
+import { WorktreesChip, worktreesChip } from '../ui/chip'
 import { canRemove, PaneError, WorktreesPane } from '../ui/pane'
 
 const MOD = 'worktrees'
@@ -22,6 +23,17 @@ async function isActive($: EngineInterface) {
     await update($, active, prev => (prev === on ? prev : on))
   }
   return read($, active)
+}
+
+const chip = atom({ plugin: 'worktrees', key: 'chip' } as const, null)
+
+async function barOwnsChips($: EngineInterface) {
+  const { value } = await $.state.get({ plugin: 'mod-manager', key: 'bar' })
+  return barIsLive(value, Date.now())
+}
+
+async function setChip($: EngineInterface, next: Chip | null) {
+  await update($, chip, prev => (sameChip(prev, next) ? prev : next))
 }
 
 const PANE_ID = 'worktrees'
@@ -180,13 +192,31 @@ async function remove($: EngineInterface, settings: Settings, repo: RepoRow, row
   await load($, settings)
 }
 
+async function publishChip($: EngineInterface) {
+  const all = await read($, repos)
+  const total = all.reduce((n, repo) => n + repo.worktrees.length, 0)
+  if (!(await read($, active)) || total === 0) return setChip($, null)
+  const cwd = await $.session.cwd()
+  await setChip($, worktreesChip(total, all.reduce((n, repo) => n + repo.worktrees.filter(row => canRemove(row, cwd)).length, 0)))
+}
+
 export const register: Register = (on, options) => {
   const settings = readSettings(options)
+
+  on('state.set', async ($, e, next) => {
+    const ran = await next(e)
+    if (e.plugin === 'mod-manager' && e.key === 'press') {
+      const pressed = e.value as ChipPress | null
+      if (pressed?.plugin === MOD && (await isActive($))) await openPane($, settings)
+    }
+    return ran
+  })
 
   on('session.start', async ($, e, next) => {
     polledAt = 0
     await $.command.register({ name: 'worktrees', description: 'Open the git worktrees pane' })
     $.clock.every(CHECK_MS, () => void tick($, settings).catch(() => undefined))
+    $.clock.every(CHECK_MS, () => void publishChip($).catch(() => undefined))
     return next(e)
   })
 
@@ -210,7 +240,7 @@ export const register: Register = (on, options) => {
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (!(await read($, active))) return next(e)
+    if (!(await read($, active)) || (await barOwnsChips($))) return next(e)
     const rest = await next(e)
     if (e.props.hasSurvey) return rest
 

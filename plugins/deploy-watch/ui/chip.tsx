@@ -2,6 +2,7 @@ import type { Elements, RenderSurface } from 'claude-code'
 
 import type { ChipKind } from '../types'
 import type { ChipState } from '../src/builds'
+import type { Chip, ChipPart, ChipTone } from '../src/shared/chip'
 import { DRACULA } from '../src/shared/theme'
 
 type Ui = Elements[RenderSurface]
@@ -31,4 +32,14 @@ export function DeployChip({ ui, projects, onOpen }: { ui: Ui; projects: { name:
       })}
     </Box>
   )
+}
+
+const KIND_TONE: Record<ChipKind, ChipTone> = { idle: 'muted', running: 'warn', ok: 'ok', failed: 'bad', missing: 'warn' }
+
+export function deployChip(projects: { name: string; state: ChipState }[]): Chip {
+  const parts = projects.flatMap(({ name, state }): ChipPart[] => [
+    { text: KIND_STYLE[state.kind].icon, tone: KIND_TONE[state.kind] },
+    { text: projects.length > 1 ? `${name} ${state.label}` : state.label, tone: 'text', action: 'open' },
+  ])
+  return { icon: '🚀', tone: 'accent', parts }
 }

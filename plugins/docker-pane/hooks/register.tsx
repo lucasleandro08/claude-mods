@@ -4,7 +4,8 @@ import type { EngineInterface, PluginOptions, Register } from 'claude-code'
 import { isHealthy, isStale, lastHeadMove, logsCommand, parseDockerPs, recreateCommand, type ContainerRow } from '../src/containers'
 import { binaryCandidates } from '../src/shared/bin'
 import { isOn, OFF_TEXT, parseState, statePath } from '../src/shared/toggle'
-import { DockerChip } from '../ui/chip'
+import { barIsLive, sameChip, type Chip, type ChipPress } from '../src/shared/chip'
+import { DockerChip, dockerChip } from '../ui/chip'
 import { DockerPane, PaneError, type Action } from '../ui/pane'
 
 const MOD = 'docker-pane'
@@ -21,6 +22,17 @@ async function isActive($: EngineInterface) {
     await update($, active, prev => (prev === on ? prev : on))
   }
   return read($, active)
+}
+
+const chip = atom({ plugin: 'docker-pane', key: 'chip' } as const, null)
+
+async function barOwnsChips($: EngineInterface) {
+  const { value } = await $.state.get({ plugin: 'mod-manager', key: 'bar' })
+  return barIsLive(value, Date.now())
+}
+
+async function setChip($: EngineInterface, next: Chip | null) {
+  await update($, chip, prev => (sameChip(prev, next) ? prev : next))
 }
 
 const PANE_ID = 'docker-pane'
@@ -137,13 +149,33 @@ async function act($: EngineInterface, settings: Settings, row: ContainerRow, ac
   await load($, settings)
 }
 
+async function publishChip($: EngineInterface) {
+  if (!(await read($, active))) return setChip($, null)
+  const rows = await read($, containers)
+  const root = await read($, repoRoot)
+  const moved = await read($, headMovedAt)
+  const up = rows.filter(r => r.state === 'running')
+  const stale = up.filter(r => isStale(r, root, moved)).length
+  await setChip($, dockerChip(up.length, stale, up.filter(r => !isHealthy(r)).length, (await read($, lastError)) !== ''))
+}
+
 export const register: Register = (on, options) => {
   const settings = readSettings(options)
+
+  on('state.set', async ($, e, next) => {
+    const ran = await next(e)
+    if (e.plugin === 'mod-manager' && e.key === 'press') {
+      const pressed = e.value as ChipPress | null
+      if (pressed?.plugin === MOD && (await isActive($))) await openPane($, settings)
+    }
+    return ran
+  })
 
   on('session.start', async ($, e, next) => {
     polledAt = 0
     await $.command.register({ name: 'docker', description: 'Open the Docker containers pane' })
     $.clock.every(CHECK_MS, () => void tick($, settings).catch(() => undefined))
+    $.clock.every(CHECK_MS, () => void publishChip($).catch(() => undefined))
     return next(e)
   })
 
@@ -167,7 +199,7 @@ export const register: Register = (on, options) => {
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (!(await read($, active))) return next(e)
+    if (!(await read($, active)) || (await barOwnsChips($))) return next(e)
     const rest = await next(e)
     if (e.props.hasSurvey) return rest
 

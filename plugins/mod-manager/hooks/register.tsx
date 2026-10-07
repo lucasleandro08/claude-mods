@@ -5,18 +5,42 @@ import type { ModEntry, Notice } from '../types'
 import { entries, installCommand, readInstalled } from '../src/catalog'
 import { claudeCandidates, installArgs, readInstallResult } from '../src/install'
 import { MARKETPLACE, parseState, serializeState, statePath, withToggle } from '../src/shared/toggle'
-import { ModsChip } from '../ui/chip'
+import { ModsBar, modsChip, type BarEntry } from '../ui/chip'
+import type { Chip } from '../src/shared/chip'
 import { ModsPane } from '../ui/pane'
 
 const PANE_ID = 'mod-manager'
-const VERSION = '2.3.0'
+const VERSION = '2.4.0'
 const REFRESH_MS = 10_000
+const BAR_BEAT_MS = 10_000
 
 const mods = atom({ plugin: 'mod-manager', key: 'mods' } as const, [] as ModEntry[])
 const lastError = atom({ plugin: 'mod-manager', key: 'lastError' } as const, '')
 const installing = atom({ plugin: 'mod-manager', key: 'installing' } as const, [])
 const notices = atom({ plugin: 'mod-manager', key: 'notices' } as const, {})
 const marketplace = atom({ plugin: 'mod-manager', key: 'marketplace' } as const, MARKETPLACE)
+// A heartbeat, not a flag: if the manager goes away, the other mods see it stale and draw their own chips again
+const bar = atom({ plugin: 'mod-manager', key: 'bar' } as const, 0)
+const press = atom({ plugin: 'mod-manager', key: 'press' } as const, null)
+
+// Refs must be literals, so each mod's chip is read by name; a mod that is not loaded reads undefined
+async function readChips($: EngineInterface): Promise<BarEntry[]> {
+  const found: [string, Chip | null | undefined][] = [
+    ['live-diff', (await $.state.get({ plugin: 'live-diff', key: 'chip' })).value],
+    ['kube-pane', (await $.state.get({ plugin: 'kube-pane', key: 'chip' })).value],
+    ['pr-pane', (await $.state.get({ plugin: 'pr-pane', key: 'chip' })).value],
+    ['aws-profile', (await $.state.get({ plugin: 'aws-profile', key: 'chip' })).value],
+    ['docker-pane', (await $.state.get({ plugin: 'docker-pane', key: 'chip' })).value],
+    ['deploy-watch', (await $.state.get({ plugin: 'deploy-watch', key: 'chip' })).value],
+    ['worktrees', (await $.state.get({ plugin: 'worktrees', key: 'chip' })).value],
+  ]
+  return found.flatMap(([plugin, chip]) => (chip ? [{ plugin, chip }] : []))
+}
+
+async function pressChip($: EngineInterface, plugin: string, action: string) {
+  if (plugin === 'mod-manager') return openPane($)
+  await update($, press, () => ({ plugin, action, at: Date.now() }))
+}
 
 async function stateFile($: EngineInterface) {
   return statePath(await $.env.get('HOME').catch(() => undefined))
@@ -129,6 +153,9 @@ export const register: Register = (on, options) => {
   const openOnStart = options.openOnStart !== false
 
   on('session.start', async ($, e, next) => {
+    const beat = () => (showChip ? update($, bar, () => Date.now()) : undefined)
+    await beat()
+    $.clock.every(BAR_BEAT_MS, () => void beat())
     await $.command.register({ name: 'mods', description: 'Install the Dracula mods and turn them on and off' })
     void start($, openOnStart).catch(() => undefined)
     $.clock.every(REFRESH_MS, () => void refreshMods($).catch(() => undefined))
@@ -158,10 +185,11 @@ export const register: Register = (on, options) => {
     if (!showChip || e.props.hasSurvey) return rest
 
     const list = await read($, mods)
+    const own = { plugin: 'mod-manager', chip: modsChip(list.filter(m => m.state === 'on').length, list.length) }
     const ui = $.ui.resolve(e)
     return (
       <ui.Box flexDirection="column">
-        <ModsChip ui={ui} on={list.filter(m => m.state === 'on').length} total={list.length || 8} onOpen={() => openPane($)} />
+        <ModsBar ui={ui} entries={[own, ...(await readChips($))]} onPress={(plugin, action) => pressChip($, plugin, action)} />
         {rest}
       </ui.Box>
     )

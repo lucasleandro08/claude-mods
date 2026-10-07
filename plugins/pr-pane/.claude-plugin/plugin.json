@@ -1,7 +1,7 @@
 {
   "name": "pr-pane",
   "displayName": "PR Pane",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Your open pull requests in a Dracula-themed pane: CI, Codex review and whether each one already reached your integration branch, plus a chip above the prompt that flags failing CI.",
   "author": {
     "name": "Lucas Leandro",

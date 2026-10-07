@@ -4,9 +4,10 @@ import type { EngineInterface, PluginOptions, Register } from 'claude-code'
 import type { BranchState, PrRow } from '../types'
 import { codexState, isContained, summarizeChecks, type Check, type SearchItem } from '../src/github'
 import { binaryCandidates } from '../src/shared/bin'
-import { PrChip } from '../ui/chip'
+import { PrChip, prChip } from '../ui/chip'
 import { PrPane } from '../ui/pane'
 import { isOn, OFF_TEXT, parseState, statePath } from '../src/shared/toggle'
+import { barIsLive, sameChip, type Chip, type ChipPress } from '../src/shared/chip'
 
 const MOD = 'pr-pane'
 const CHECK_MS = 5000
@@ -22,6 +23,17 @@ async function isActive($: EngineInterface) {
     await update($, active, prev => (prev === on ? prev : on))
   }
   return read($, active)
+}
+
+const chip = atom({ plugin: 'pr-pane', key: 'chip' } as const, null)
+
+async function barOwnsChips($: EngineInterface) {
+  const { value } = await $.state.get({ plugin: 'mod-manager', key: 'bar' })
+  return barIsLive(value, Date.now())
+}
+
+async function setChip($: EngineInterface, next: Chip | null) {
+  await update($, chip, prev => (sameChip(prev, next) ? prev : next))
 }
 
 const PANE_ID = 'pr-pane'
@@ -122,8 +134,21 @@ async function openPane($: EngineInterface, settings: Settings) {
   void refresh($, settings)
 }
 
+async function publishChip($: EngineInterface) {
+  await setChip($, (await read($, active)) ? prChip(await read($, rows)) : null)
+}
+
 export const register: Register = (on, options) => {
   const settings = readSettings(options)
+
+  on('state.set', async ($, e, next) => {
+    const ran = await next(e)
+    if (e.plugin === 'mod-manager' && e.key === 'press') {
+      const pressed = e.value as ChipPress | null
+      if (pressed?.plugin === MOD && (await isActive($))) await openPane($, settings)
+    }
+    return ran
+  })
 
   on('session.start', async ($, e, next) => {
     void isActive($)
@@ -132,6 +157,7 @@ export const register: Register = (on, options) => {
     void isActive($).then(enabled => (enabled ? refresh($, settings) : undefined))
     $.clock.every(settings.refreshMs, () => void isActive($).then(enabled => (enabled ? refresh($, settings) : undefined)))
 
+    $.clock.every(CHECK_MS, () => void publishChip($).catch(() => undefined))
     return next(e)
   })
 
@@ -148,7 +174,7 @@ export const register: Register = (on, options) => {
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (!(await read($, active))) return next(e)
+    if (!(await read($, active)) || (await barOwnsChips($))) return next(e)
     const rest = await next(e)
     const list = await read($, rows)
     if (e.props.hasSurvey || (await read($, isOpen))) return rest

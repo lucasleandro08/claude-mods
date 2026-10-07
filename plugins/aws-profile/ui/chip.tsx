@@ -1,6 +1,7 @@
 import type { Elements, RenderSurface } from 'claude-code'
 
 import type { SessionStatus } from '../types'
+import type { Chip, ChipPart } from '../src/shared/chip'
 import { DRACULA } from '../src/shared/theme'
 
 type Ui = Elements[RenderSurface]
@@ -42,4 +43,20 @@ export function ProfileChip({ ui, profile, sessions, pending, isProduction, onLo
       })}
     </Box>
   )
+}
+
+export function profileChip(profile: string, sessions: SessionStatus[], pending: string[], isProduction: (name: string) => boolean): Chip {
+  if (sessions.length === 0) {
+    const tone = profile === '' ? 'muted' : isProduction(profile) ? 'bad' : 'text'
+    return { icon: '☁', tone: 'warn', parts: [{ text: profile === '' ? 'no AWS_PROFILE' : profile, tone }] }
+  }
+  const parts: ChipPart[] = sessions.flatMap(({ name, state }): ChipPart[] => {
+    const label = `${name === profile ? '● ' : ''}${name}`
+    const tone = isProduction(name) ? 'bad' : 'text'
+    if (pending.includes(name)) return [{ text: `${label} ⟳`, tone: 'warn' }]
+    if (state === 'valid') return [{ text: label, tone }, { text: '✓', tone: 'ok' }]
+    if (state === 'checking') return [{ text: `${label} …`, tone: 'muted' }]
+    return [{ text: `${label} ✗ login`, tone: 'bad', action: `login:${name}` }]
+  })
+  return { icon: '☁', tone: 'warn', parts }
 }

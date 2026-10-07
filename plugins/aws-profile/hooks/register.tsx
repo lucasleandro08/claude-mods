@@ -4,7 +4,8 @@ import type { EngineInterface, PluginOptions, Register } from 'claude-code'
 import { classify, LOGIN_PATTERN, loginCommand, pickProfiles, withStatus } from '../src/sessions'
 import { binaryCandidates } from '../src/shared/bin'
 import { isOn, parseState, statePath } from '../src/shared/toggle'
-import { ProfileChip } from '../ui/chip'
+import { barIsLive, sameChip, type Chip, type ChipPress } from '../src/shared/chip'
+import { ProfileChip, profileChip } from '../ui/chip'
 
 const MOD = 'aws-profile'
 const CHECK_MS = 5000
@@ -20,6 +21,17 @@ async function isActive($: EngineInterface) {
     await update($, active, prev => (prev === on ? prev : on))
   }
   return read($, active)
+}
+
+const chip = atom({ plugin: 'aws-profile', key: 'chip' } as const, null)
+
+async function barOwnsChips($: EngineInterface) {
+  const { value } = await $.state.get({ plugin: 'mod-manager', key: 'bar' })
+  return barIsLive(value, Date.now())
+}
+
+async function setChip($: EngineInterface, next: Chip | null) {
+  await update($, chip, prev => (sameChip(prev, next) ? prev : next))
 }
 
 const PENDING_WINDOW_MS = 180_000
@@ -101,12 +113,33 @@ async function login($: EngineInterface, name: string) {
   }
 }
 
+async function publishChip($: EngineInterface, settings: Settings) {
+  const next = (await read($, active))
+    ? profileChip(await read($, profile), await read($, sessions), await read($, pending), name => settings.production.test(name))
+    : null
+  await setChip($, next)
+}
+
+async function pressProfile($: EngineInterface, action: string) {
+  if (action.startsWith('login:')) await login($, action.slice('login:'.length))
+}
+
 export const register: Register = (on, options) => {
   const settings = readSettings(options)
+
+  on('state.set', async ($, e, next) => {
+    const ran = await next(e)
+    if (e.plugin === 'mod-manager' && e.key === 'press') {
+      const pressed = e.value as ChipPress | null
+      if (pressed?.plugin === MOD && (await isActive($))) await pressProfile($, pressed.action)
+    }
+    return ran
+  })
 
   on('session.start', async ($, e, next) => {
     fullCheckAt = 0
     $.clock.every(CHECK_MS, () => void tick($, settings).catch(() => undefined))
+    $.clock.every(CHECK_MS, () => void publishChip($, settings).catch(() => undefined))
     return next(e)
   })
 
@@ -119,7 +152,7 @@ export const register: Register = (on, options) => {
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (!(await read($, active))) return next(e)
+    if (!(await read($, active)) || (await barOwnsChips($))) return next(e)
     const rest = await next(e)
     if (e.props.hasSurvey) return rest
 

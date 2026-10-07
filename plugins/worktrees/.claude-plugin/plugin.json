@@ -1,7 +1,7 @@
 {
   "name": "worktrees",
   "displayName": "Worktrees",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A chip with your git worktrees and a pane that shows each one's branch, uncommitted changes and pull request, opens it in the app's Terminal and removes the clean ones whose branch is merged.",
   "author": {
     "name": "Lucas Leandro",

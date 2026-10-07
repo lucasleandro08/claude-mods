@@ -1,5 +1,6 @@
 import type { On } from 'claude-code'
 import { describe, expect, mock, test } from 'claude-code/testing'
+import type { Register } from 'claude-code'
 
 const SURFACES = ['terminal', 'desktop'] as const
 const PANE = { title: 'Mods', isFocused: false, bodyColumns: 90, placement: 'dock' as const, scroll: { offset: 0, bodyRows: 40 }, view: {} }
@@ -37,6 +38,20 @@ const out = (exitCode: number, stdout: string, stderr = '') => ({
 
 const OPEN = { command: 'mods', args: '' } as never
 
+const fakeDocker: Register = on => {
+  on('session.start', async ($, e, next) => {
+    await $.state.set({ plugin: 'docker-pane', key: 'chip' }, { icon: '🐳', tone: 'info', parts: [{ text: '3 up', tone: 'text', action: 'open' }, { text: '⚠ 1 stale', tone: 'warn' }] })
+    return next(e)
+  })
+  on('state.set', async ($, e, next) => {
+    const ran = await next(e)
+    if (e.plugin === 'mod-manager' && e.key === 'press') {
+      await $.state.set({ plugin: 'docker-pane', key: 'chip' }, { icon: '🐳', tone: 'info', parts: [{ text: 'pressed open', tone: 'text', action: 'open' }] })
+    }
+    return ran
+  })
+}
+
 describe('mod-manager', () => {
   for (const surface of SURFACES) {
     test(`finds mods installed from the marketplace or a folder on ${surface}`, async ($, on) => {
@@ -64,7 +79,7 @@ describe('mod-manager', () => {
       await $.command.run(OPEN)
 
       const band = await $.ui.mount({ plugin: 'mod-manager', surface, component: 'AbovePrompt', props: BAND })
-      expect((await band.find({ type: 'Button', key: 'open-mods' }))?.props.label).toBe('Mods · 2/11')
+      expect((await band.find({ type: 'Button', key: 'mod-manager-open' }))?.props.label).toBe('2/11')
       expect(await band.find({ text: 'beneath' })).toBeDefined()
     })
   }
@@ -231,5 +246,22 @@ describe('mod-manager', () => {
     await pane.press({ key: 'install-pr-pane' })
     expect(calls).toEqual(['claude plugin install pr-pane@claude-mods --scope user --json'])
   })
-})
 
+  test('draws every mod chip in one bar and routes presses to the mod', { plugins: [{ name: 'docker-pane', register: fakeDocker }] }, async ($, on) => {
+    world(on, { enabledPlugins: { 'docker-pane@dracula-mods': true }, state: { 'docker-pane': true } })
+    on('command.register', () => ({ value: undefined }) as never)
+    on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+      const { Text } = $.ui.resolve(e)
+      return <Text>beneath</Text>
+    })
+    await $.session.start({ source: 'startup', cwd: '/tmp' } as never).catch(() => undefined)
+
+    const band = await $.ui.mount({ plugin: 'mod-manager', surface: 'desktop', component: 'AbovePrompt', props: BAND })
+    expect((await band.find({ type: 'Button', key: 'docker-pane-open' }))?.props.label).toBe('3 up')
+    expect(await band.find({ text: '⚠ 1 stale' })).toBeDefined()
+    expect(await band.find({ text: 'beneath' })).toBeDefined()
+
+    await band.press({ key: 'docker-pane-open' })
+    expect((await band.find({ type: 'Button', key: 'docker-pane-open' }))?.props.label).toBe('pressed open')
+  })
+})

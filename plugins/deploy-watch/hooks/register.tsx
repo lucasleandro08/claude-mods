@@ -5,7 +5,8 @@ import type { BuildRow, Project } from '../types'
 import { awsFlags, BUILD_QUERY, chipState, isSettled, logsCommand, parseProjects, pushedProjects, toBuildRows } from '../src/builds'
 import { binaryCandidates } from '../src/shared/bin'
 import { isOn, OFF_TEXT, parseState, statePath } from '../src/shared/toggle'
-import { DeployChip } from '../ui/chip'
+import { barIsLive, sameChip, type Chip, type ChipPress } from '../src/shared/chip'
+import { DeployChip, deployChip } from '../ui/chip'
 import { DeploysPane, PaneError } from '../ui/pane'
 
 const MOD = 'deploy-watch'
@@ -22,6 +23,17 @@ async function isActive($: EngineInterface) {
     await update($, active, prev => (prev === on ? prev : on))
   }
   return read($, active)
+}
+
+const chip = atom({ plugin: 'deploy-watch', key: 'chip' } as const, null)
+
+async function barOwnsChips($: EngineInterface) {
+  const { value } = await $.state.get({ plugin: 'mod-manager', key: 'bar' })
+  return barIsLive(value, Date.now())
+}
+
+async function setChip($: EngineInterface, next: Chip | null) {
+  await update($, chip, prev => (sameChip(prev, next) ? prev : next))
 }
 
 const PANE_ID = 'deploy-watch'
@@ -175,13 +187,31 @@ async function openLogs($: EngineInterface, settings: Settings, build: BuildRow)
   }
 }
 
+async function publishChip($: EngineInterface, settings: Settings) {
+  if (settings.projects.length === 0 || !(await read($, active))) return setChip($, null)
+  const all = await read($, builds)
+  const pending = await read($, pushes)
+  const now = await $.clock.now()
+  await setChip($, deployChip(settings.projects.map(p => ({ name: p.name, state: chipState(all[p.name] ?? [], pending[p.name] ?? 0, now, settings.missingMs) }))))
+}
+
 export const register: Register = (on, options) => {
   const settings = readSettings(options)
+
+  on('state.set', async ($, e, next) => {
+    const ran = await next(e)
+    if (e.plugin === 'mod-manager' && e.key === 'press') {
+      const pressed = e.value as ChipPress | null
+      if (pressed?.plugin === MOD && (await isActive($))) await openPane($, settings)
+    }
+    return ran
+  })
 
   on('session.start', async ($, e, next) => {
     polledAt = 0
     await $.command.register({ name: 'deploys', description: 'Open the CodeBuild deploys pane' })
     $.clock.every(CHECK_MS, () => void tick($, settings).catch(() => undefined))
+    $.clock.every(CHECK_MS, () => void publishChip($, settings).catch(() => undefined))
     return next(e)
   })
 
@@ -210,7 +240,7 @@ export const register: Register = (on, options) => {
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (!(await read($, active)) || settings.projects.length === 0) return next(e)
+    if (!(await read($, active)) || settings.projects.length === 0 || (await barOwnsChips($))) return next(e)
     const rest = await next(e)
     if (e.props.hasSurvey) return rest
 

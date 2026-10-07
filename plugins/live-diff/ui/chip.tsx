@@ -1,5 +1,6 @@
 import type { Elements, RenderSurface } from 'claude-code'
 
+import type { Chip } from '../src/shared/chip'
 import { DRACULA } from '../src/shared/theme'
 
 type Ui = Elements[RenderSurface]
@@ -14,4 +15,8 @@ export function DiffChip({ ui, count, onOpen }: { ui: Ui; count: number; onOpen:
       <Button key="open-diff" label={label} dimColor onPress={onOpen} />
     </Box>
   )
+}
+
+export function diffChip(count: number): Chip {
+  return { icon: 'Δ', tone: 'accent', parts: [{ text: count === 0 ? 'diff' : `${count} ${count === 1 ? 'edit' : 'edits'}`, tone: 'text', action: 'open' }] }
 }

@@ -1,3 +1,8 @@
+export type ChipTone = 'text' | 'muted' | 'ok' | 'warn' | 'bad' | 'info' | 'accent'
+export type ChipPart = { text: string; tone: ChipTone; bold?: boolean; action?: string }
+export type Chip = { icon: string; tone: ChipTone; parts: ChipPart[] }
+export type ChipPress = { plugin: string; action: string; at: number }
+
 export type ContainerRow = {
   id: string
   name: string
@@ -14,7 +19,9 @@ export type ContainerRow = {
 
 declare module 'claude-code' {
   interface PluginState {
+    'mod-manager': { bar: number; press: ChipPress | null }
     'docker-pane': {
+      chip: Chip | null
       active: boolean
       containers: ContainerRow[]
       repoRoot: string
