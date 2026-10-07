@@ -50,7 +50,7 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (!(await read($, active))) return next(e)
     const rest = await next(e)
-    const current = (await read($, profile)) || 'default'
+    const current = await read($, profile)
     if (e.props.hasSurvey) return rest
 
     const ui = $.ui.resolve(e)

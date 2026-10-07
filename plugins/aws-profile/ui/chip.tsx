@@ -12,7 +12,7 @@ export function ProfileChip({ ui, profile, isProduction }: { ui: Ui; profile: st
     <Box flexDirection="row" marginBottom={1}>
       <Text>
         <Text color={isProduction ? DRACULA.red : DRACULA.orange} bold={isProduction}>☁ </Text>
-        <Text color={color} bold={isProduction}>{profile}</Text>
+        <Text color={color} bold={isProduction} dimColor={profile === ''}>{profile === '' ? 'no AWS_PROFILE' : profile}</Text>
       </Text>
     </Box>
   )

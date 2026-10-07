@@ -2,7 +2,7 @@
   "name": "aws-profile",
   "displayName": "AWS Profile",
   "version": "1.1.0",
-  "description": "Shows the AWS_PROFILE Claude Code runs with above the prompt, in red when it looks like production.",
+  "description": "Shows the AWS_PROFILE Claude Code runs with above the prompt, in red when it looks like production, and \"no AWS_PROFILE\" when none is set.",
   "author": {
     "name": "Lucas Leandro",
     "url": "https://github.com/lucasleandro08"
