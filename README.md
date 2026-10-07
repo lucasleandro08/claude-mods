@@ -1,6 +1,6 @@
 # claude-mods
 
-Dracula-themed mods for [Claude Code](https://code.claude.com): a live diff pane, a Kubernetes pods pane, a pull request dashboard, guardrails for risky shell commands and a few workflow helpers. Each mod is its own plugin, so install only the ones you want.
+Dracula-themed mods for [Claude Code](https://code.claude.com): a live diff pane, Kubernetes, Docker, CodeBuild and worktree panes, a pull request dashboard, AWS SSO status, guardrails for risky shell commands and a few workflow helpers. Each mod is its own plugin, so install only the ones you want.
 
 > Mods use Claude Code's function hooks API, which is in early access and may change between releases. Mods run on your machine with your permissions: read the code before installing, like any plugin.
 
@@ -19,7 +19,7 @@ The marketplace is named `dracula-mods`. Open `/mods` (or click the `⚙ Mods` c
 
 | Mod | What it does | Commands |
 | --- | --- | --- |
-| **mod-manager** | The only mod on by default: a pane that lists every mod with an on/off switch and an **Install** button for the ones not installed yet (it runs `claude plugin install`, or puts the `/plugin install` command in your prompt when the CLI is not found), plus a `⚙ Mods · n/8` chip above the prompt. | `/mods` |
+| **mod-manager** | The only mod on by default: a pane that lists every mod with an on/off switch and an **Install** button for the ones not installed yet (it runs `claude plugin install`, or puts the `/plugin install` command in your prompt when the CLI is not found), plus a `⚙ Mods · n/11` chip above the prompt. | `/mods` |
 | **live-diff** | A pane with the diff of every `Edit` and `Write` Claude makes: file navigator with `M`/`A` status, `+/-` counts, line numbers and red/green rows. A `Δ Diff` chip above the prompt reopens it. | `/diff`, `/diff-clear` |
 | **kube-pane** | A `⎈ context` chip above the prompt (red on production) and a pods pane: context and namespace pickers, filter, pages, unhealthy pods first, and a `⌘ Shell` button that opens `kubectl exec` in the app's Terminal, with a container picker for multi-container pods. Switching context only affects Claude's session: your kubeconfig is never written. | `/pods` |
 | **pr-pane** | Your open pull requests grouped by repo, with CI status, the Codex review state and whether each PR already reached your integration branch. A `⑂ PRs` chip flags failing CI and Codex findings. Needs the [GitHub CLI](https://cli.github.com). | `/prs` |
@@ -27,7 +27,10 @@ The marketplace is named `dracula-mods`. Open `/mods` (or click the `⚙ Mods` c
 | **promote-branch** | `/promote` previews merging the current branch into your integration branch (commits, files, test files touched). `/promote go` does a full merge in a temporary worktree and pushes it, refusing dirty trees and protected branches. | `/promote`, `/promote go` |
 | **codex-loop** | Hands Claude the review loop with the Codex GitHub bot: request a review, weigh each finding, fix or 👎 it, reply, resolve, repeat until 👍. | `/codex-loop <PR>` |
 | **turn-done** | A toast and a chime when a long turn finishes. | — |
-| **aws-profile** | Shows the `AWS_PROFILE` Claude Code runs with above the prompt, in red on production profiles. | — |
+| **aws-profile** | Each AWS profile above the prompt with whether its login still works (`aws sts get-caller-identity`, only the exit code is kept). Expired ones get a **login** button that runs `aws sso login --profile …` in the app's Terminal and turns green once you finish. The `AWS_PROFILE` Claude Code runs with is marked `●`; production profiles are red. | — |
+| **docker-pane** | A `🐳 Docker · n up` chip (unhealthy and stale counts) and a pane grouped by compose project: ports, health, **Start/Stop/Restart** by container name (never by port), **Logs** and compose **Recreate** in the app's Terminal. Flags containers created before your last `git checkout` in the session's repo, the usual cause of a test failing for no reason. | `/docker` |
+| **deploy-watch** | Watches AWS CodeBuild projects: a `🚀` chip with the last build, a warning (chip and toast) when a `git push` to a project's branch started no build after a few minutes, and a pane with recent builds, their logs in the Terminal and a **Start build** button that asks first. | `/deploys` |
+| **worktrees** | A `🌳 n worktrees` chip and a pane with every worktree of the session's repo and of the repos under your roots: branch, uncommitted changes, PR state, a **Terminal** button, and **Remove** (asks first, never `--force`) for clean worktrees whose branch is merged. | `/worktrees` |
 
 ### Options
 
@@ -41,7 +44,10 @@ The marketplace is named `dracula-mods`. Open `/mods` (or click the `⚙ Mods` c
 | live-diff | Context lines · edits kept | 2 · 100 |
 | turn-done | Long turn threshold · play sound | 60 s · on |
 | codex-loop | Codex bot login | `chatgpt-codex-connector[bot]` |
-| aws-profile | Production pattern | `prod` |
+| aws-profile | Production pattern · profiles · check interval · aws path | `prod` · all · 5 min · PATH |
+| docker-pane | Refresh interval · docker path | 60 s (10 s while open) · PATH |
+| deploy-watch | Projects (`name=branch`, comma-separated) · AWS profile · region · poll interval · missing build warning · production pattern · aws path | none · CLI default · profile's · 60 s · 3 min · `prod` · PATH |
+| worktrees | Roots (folders holding your repos) · refresh interval · gh path | session repo only · 5 min · PATH |
 
 The chips above the prompt compose with each other and with other mods' bands: each one draws its row and keeps whatever the mods beneath it drew.
 

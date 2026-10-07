@@ -1,8 +1,8 @@
 {
   "name": "aws-profile",
   "displayName": "AWS Profile",
-  "version": "1.1.0",
-  "description": "Shows the AWS_PROFILE Claude Code runs with above the prompt, in red when it looks like production, and \"no AWS_PROFILE\" when none is set.",
+  "version": "2.0.0",
+  "description": "Shows each AWS profile above the prompt with whether its login still works, a one-click `aws sso login` in the app's Terminal for the expired ones, and the AWS_PROFILE Claude Code runs with. Production profiles are red.",
   "author": {
     "name": "Lucas Leandro",
     "url": "https://github.com/lucasleandro08"
@@ -14,7 +14,8 @@
   "keywords": [
     "claude-code",
     "claude-mod",
-    "aws"
+    "aws",
+    "sso"
   ],
   "userConfig": {
     "productionPattern": {
@@ -22,6 +23,24 @@
       "title": "Production profile pattern",
       "description": "Regular expression that marks a profile as production (case-insensitive).",
       "default": "prod"
+    },
+    "profiles": {
+      "type": "string",
+      "title": "Profiles",
+      "description": "Comma-separated profiles to show. Empty shows every profile from `aws configure list-profiles`.",
+      "default": ""
+    },
+    "checkMinutes": {
+      "type": "number",
+      "title": "Check interval (minutes)",
+      "description": "How often each profile's login is checked with `aws sts get-caller-identity`.",
+      "default": 5
+    },
+    "awsPath": {
+      "type": "string",
+      "title": "aws path",
+      "description": "Full path to the AWS CLI when it is not on the PATH Claude Code sees.",
+      "default": ""
     }
   }
 }

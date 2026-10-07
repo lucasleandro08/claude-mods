@@ -48,7 +48,7 @@ describe('mod-manager', () => {
       await $.command.run(OPEN)
 
       const pane = await $.ui.mount({ plugin: 'mod-manager', surface, component: 'Pane', requestId: 'mod-manager', props: PANE })
-      expect(await pane.find({ text: /1 of 8 on/ })).toBeDefined()
+      expect(await pane.find({ text: /1 of 11 on/ })).toBeDefined()
       expect((await pane.find({ type: 'Button', key: 'toggle-live-diff' }))?.props.label).toBe('Turn off')
       expect((await pane.find({ type: 'Button', key: 'toggle-kube-pane' }))?.props.label).toBe('Turn on')
       expect(await pane.find({ type: 'Button', key: 'toggle-guardrails' })).toBeDefined()
@@ -64,7 +64,7 @@ describe('mod-manager', () => {
       await $.command.run(OPEN)
 
       const band = await $.ui.mount({ plugin: 'mod-manager', surface, component: 'AbovePrompt', props: BAND })
-      expect((await band.find({ type: 'Button', key: 'open-mods' }))?.props.label).toBe('Mods · 2/8')
+      expect((await band.find({ type: 'Button', key: 'open-mods' }))?.props.label).toBe('Mods · 2/11')
       expect(await band.find({ text: 'beneath' })).toBeDefined()
     })
   }
@@ -144,6 +144,9 @@ describe('mod-manager', () => {
       'codex-loop@dracula-mods',
       'turn-done@dracula-mods',
       'aws-profile@dracula-mods',
+      'docker-pane@dracula-mods',
+      'deploy-watch@dracula-mods',
+      'worktrees@dracula-mods',
     ])
   })
 

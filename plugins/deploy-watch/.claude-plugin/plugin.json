@@ -1,0 +1,66 @@
+{
+  "name": "deploy-watch",
+  "displayName": "Deploy Watch",
+  "version": "1.0.0",
+  "description": "Watches AWS CodeBuild projects: a chip above the prompt with the last build, a warning when a push to the deploy branch started no build, and a pane with recent builds, their logs in the app's Terminal and a Start build button.",
+  "author": {
+    "name": "Lucas Leandro",
+    "url": "https://github.com/lucasleandro08"
+  },
+  "homepage": "https://github.com/lucasleandro08/claude-mods",
+  "repository": "https://github.com/lucasleandro08/claude-mods",
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "keywords": [
+    "claude-code",
+    "claude-mod",
+    "aws",
+    "codebuild",
+    "deploy",
+    "dracula"
+  ],
+  "userConfig": {
+    "projects": {
+      "type": "string",
+      "title": "Projects",
+      "description": "Comma-separated CodeBuild projects, each optionally with the branch that deploys it: my-app-staging=staging, my-app-prod=main.",
+      "default": ""
+    },
+    "awsProfile": {
+      "type": "string",
+      "title": "AWS profile",
+      "description": "Profile the aws CLI calls use. Empty uses the CLI's own default.",
+      "default": ""
+    },
+    "region": {
+      "type": "string",
+      "title": "AWS region",
+      "description": "Region of the projects. Empty uses the profile's region.",
+      "default": ""
+    },
+    "pollSeconds": {
+      "type": "number",
+      "title": "Poll interval (seconds)",
+      "description": "How often the builds are read while nothing is running; running builds are read every 15 s.",
+      "default": 60
+    },
+    "missingBuildMinutes": {
+      "type": "number",
+      "title": "Missing build warning (minutes)",
+      "description": "How long after a push to a project's branch with no new build before the chip warns.",
+      "default": 3
+    },
+    "productionPattern": {
+      "type": "string",
+      "title": "Production project pattern",
+      "description": "Regular expression that marks a project as production (case-insensitive) in the Start build confirmation.",
+      "default": "prod"
+    },
+    "awsPath": {
+      "type": "string",
+      "title": "aws path",
+      "description": "Full path to the AWS CLI when it is not on the PATH Claude Code sees.",
+      "default": ""
+    }
+  }
+}

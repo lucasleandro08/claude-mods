@@ -1,0 +1,37 @@
+{
+  "name": "docker-pane",
+  "displayName": "Docker Pane",
+  "version": "1.0.0",
+  "description": "A Docker chip above the prompt and a Dracula-themed containers pane grouped by compose project: ports, health, Start/Stop/Restart by container name, logs and compose Recreate in the app's Terminal, and a warning when a container is older than your last git checkout.",
+  "author": {
+    "name": "Lucas Leandro",
+    "url": "https://github.com/lucasleandro08"
+  },
+  "homepage": "https://github.com/lucasleandro08/claude-mods",
+  "repository": "https://github.com/lucasleandro08/claude-mods",
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "keywords": [
+    "claude-code",
+    "claude-mod",
+    "docker",
+    "compose",
+    "containers",
+    "pane",
+    "dracula"
+  ],
+  "userConfig": {
+    "pollSeconds": {
+      "type": "number",
+      "title": "Refresh interval (seconds)",
+      "description": "How often the containers are read while the pane is closed; the open pane refreshes every 10 s.",
+      "default": 60
+    },
+    "dockerPath": {
+      "type": "string",
+      "title": "docker path",
+      "description": "Full path to docker when it is not on the PATH Claude Code sees.",
+      "default": ""
+    }
+  }
+}

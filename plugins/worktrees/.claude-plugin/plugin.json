@@ -1,0 +1,42 @@
+{
+  "name": "worktrees",
+  "displayName": "Worktrees",
+  "version": "1.0.0",
+  "description": "A chip with your git worktrees and a pane that shows each one's branch, uncommitted changes and pull request, opens it in the app's Terminal and removes the clean ones whose branch is merged.",
+  "author": {
+    "name": "Lucas Leandro",
+    "url": "https://github.com/lucasleandro08"
+  },
+  "homepage": "https://github.com/lucasleandro08/claude-mods",
+  "repository": "https://github.com/lucasleandro08/claude-mods",
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "keywords": [
+    "claude-code",
+    "claude-mod",
+    "git",
+    "worktree",
+    "pane",
+    "dracula"
+  ],
+  "userConfig": {
+    "roots": {
+      "type": "string",
+      "title": "Roots",
+      "description": "Comma-separated folders that hold your repos (e.g. ~/code). Each repo inside them with worktrees is listed, besides the session's own repo.",
+      "default": ""
+    },
+    "pollMinutes": {
+      "type": "number",
+      "title": "Refresh interval (minutes)",
+      "description": "How often the worktrees are read.",
+      "default": 5
+    },
+    "ghPath": {
+      "type": "string",
+      "title": "gh path",
+      "description": "Full path to the GitHub CLI when it is not on the PATH Claude Code sees. Without gh, merged branches are found with git alone.",
+      "default": ""
+    }
+  }
+}

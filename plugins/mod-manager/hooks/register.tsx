@@ -9,7 +9,7 @@ import { ModsChip } from '../ui/chip'
 import { ModsPane } from '../ui/pane'
 
 const PANE_ID = 'mod-manager'
-const VERSION = '2.1.0'
+const VERSION = '2.2.0'
 const REFRESH_MS = 10_000
 
 const mods = atom({ plugin: 'mod-manager', key: 'mods' } as const, [] as ModEntry[])

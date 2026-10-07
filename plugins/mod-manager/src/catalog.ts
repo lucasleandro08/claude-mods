@@ -9,7 +9,10 @@ export const CATALOG = [
   { name: 'promote-branch', title: 'Promote Branch', summary: '/promote merges your branch into the integration branch' },
   { name: 'codex-loop', title: 'Codex Loop', summary: '/codex-loop runs the Codex review loop on a PR' },
   { name: 'turn-done', title: 'Turn Done', summary: 'Toast and chime when a long turn finishes' },
-  { name: 'aws-profile', title: 'AWS Profile', summary: 'Shows AWS_PROFILE above the prompt' },
+  { name: 'aws-profile', title: 'AWS Profile', summary: 'Each AWS profile with its login state and a one-click SSO login' },
+  { name: 'docker-pane', title: 'Docker Pane', summary: 'Containers by compose project, restart by name, stale warning' },
+  { name: 'deploy-watch', title: 'Deploy Watch', summary: 'CodeBuild builds, logs and a warning when a push builds nothing' },
+  { name: 'worktrees', title: 'Worktrees', summary: 'Your git worktrees with changes and PRs; remove merged ones' },
 ] as const
 
 export const REPO = 'lucasleandro08/claude-mods'
