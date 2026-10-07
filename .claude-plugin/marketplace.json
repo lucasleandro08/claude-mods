@@ -18,7 +18,7 @@
       "name": "live-diff",
       "source": "./plugins/live-diff",
       "description": "A Dracula-themed pane with the diff of every Edit and Write Claude makes in the session, a file navigator and line numbers.",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "homepage": "https://github.com/lucasleandro08/claude-mods",
       "repository": "https://github.com/lucasleandro08/claude-mods"
     },

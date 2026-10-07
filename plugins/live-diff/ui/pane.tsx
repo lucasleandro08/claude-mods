@@ -8,6 +8,11 @@ import { DRACULA } from '../src/shared/theme'
 type Ui = Elements[RenderSurface]
 
 const LINE_BUDGET = { all: 120, file: 400 } as const
+// The engine unmounts a pane whose tree passes 100,000 serialized characters: keep well under it
+const SIZE_BUDGET = 70_000
+const LINE_OVERHEAD = 300
+const FILE_ROW_COST = 900
+const GUTTER_COLUMNS = 14
 const ROW_TINT = { add: '#2b3b33', del: '#3d2b33' } as const
 
 export type DiffPaneProps = {
@@ -24,7 +29,9 @@ export function DiffPane({ ui, width, hunks, selected, onPick, onClear }: DiffPa
   const files = summarizeFiles(hunks)
   const root = commonDir(files.map(f => f.path))
   const current = selected !== null && files.some(f => f.path === selected) ? selected : null
-  const shown = budgetLines(current === null ? files : files.filter(f => f.path === current), LINE_BUDGET[current === null ? 'all' : 'file'])
+  const textWidth = Math.max(20, width - GUTTER_COLUMNS)
+  const sizeLeft = SIZE_BUDGET - FILE_ROW_COST * (files.length + 1)
+  const shown = budgetLines(current === null ? files : files.filter(f => f.path === current), LINE_BUDGET[current === null ? 'all' : 'file'], sizeLeft, textWidth)
   const rule = <Text color={DRACULA.currentLine}>{'─'.repeat(Math.max(20, width - 2))}</Text>
 
   return (
@@ -139,17 +146,25 @@ export function PaneError({ ui, message }: { ui: Ui; message: string }) {
 type ShownHunk = { hunk: Hunk; lines: DiffLine[]; hidden: number }
 type ShownFile = FileSummary & { shown: ShownHunk[] }
 
-function budgetLines(files: readonly FileSummary[], budget: number) {
+function budgetLines(files: readonly FileSummary[], budget: number, size: number, textWidth: number) {
   let left = budget
+  let sizeLeft = size
   let hiddenLines = 0
   const shownFiles: ShownFile[] = []
 
   for (const file of files) {
     const shown: ShownHunk[] = []
     for (const hunk of file.hunks) {
-      const take = Math.max(0, Math.min(left, hunk.lines.length))
-      left -= take
-      if (take > 0) shown.push({ hunk, lines: hunk.lines.slice(0, take), hidden: hunk.lines.length - take })
+      const lines: DiffLine[] = []
+      for (const line of hunk.lines) {
+        const text = line.text.length > textWidth ? line.text.slice(0, textWidth) : line.text
+        const cost = text.length + LINE_OVERHEAD
+        if (left === 0 || cost > sizeLeft) break
+        lines.push(text === line.text ? line : { ...line, text })
+        left -= 1
+        sizeLeft -= cost
+      }
+      if (lines.length > 0) shown.push({ hunk, lines, hidden: hunk.lines.length - lines.length })
       else hiddenLines += hunk.lines.length
     }
     if (shown.length > 0) shownFiles.push({ ...file, shown })

@@ -118,18 +118,28 @@ describe('diff chip', () => {
 })
 
 describe('large sessions', () => {
-  test('caps the lines drawn and points to the file view', async ($, on) => {
+  const LIMIT = 100_000
+  const long = (i: number) => `${'wide '.repeat(i % 3 === 0 ? 80 : 1)}const x${i} = '─ → ✓' // line ${i}`
+
+  test('stays under the engine size limit in both views', async ($, on) => {
     turnOn(on)
     on('tool.call', { tool: 'Write' }, () => ({ result: {} as never }))
-    const big = Array.from({ length: 300 }, (_, i) => `line ${i}`).join('\n')
+    on('tool.call', { tool: 'Edit' }, () => ({ result: {} as never }))
+    const big = Array.from({ length: 300 }, (_, i) => long(i)).join('\n')
     for (let i = 0; i < 13; i++) await $.tool.call({ tool: 'Write', file_path: `/repo/file-${i}.ts`, content: big })
+    for (let i = 0; i < 8; i++) await $.tool.call({ tool: 'Edit', file_path: `/repo/file-${i}.ts`, old_string: 'const', new_string: `let /* ${i} */` })
 
     const pane = await $.ui.mount({ plugin: 'live-diff', surface: 'desktop', component: 'Pane', requestId: 'live-diff', props: PANE })
-    expect((await pane.findAll({})).length < 1500).toBe(true)
+    expect(JSON.stringify(await pane.drawn()).length < LIMIT).toBe(true)
     expect(await pane.find({ text: /more lines; pick a file/ })).toBeDefined()
 
     await pane.press({ key: 'pick-/repo/file-3.ts' })
-    expect(await pane.find({ text: 'line 299' })).toBeDefined()
+    expect(JSON.stringify(await pane.drawn()).length < LIMIT).toBe(true)
+    expect(await pane.find({ type: 'Button', key: 'pick-all' })).toBeDefined()
+    expect(await pane.find({ text: /line 121/ })).toBeDefined()
+
+    await pane.press({ key: 'pick-all' })
+    expect(await pane.find({ type: 'Button', key: 'pick-/repo/file-3.ts' })).toBeDefined()
   })
 })
 

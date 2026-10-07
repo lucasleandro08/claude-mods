@@ -10,11 +10,13 @@ const out = (stdout: string, exitCode = 0) => ({
   value: { exitCode, stdout, stderr: exitCode ? 'fatal: contains modified files' : '', isStdoutTruncated: false, isStderrTruncated: false },
 })
 
+const MANY = Array.from({ length: 60 }, (_, i) => `worktree /code/app-feature-with-a-long-name-${i}\nHEAD c${i}\nbranch refs/heads/feat/some-long-branch-name-${i}`)
 const PORCELAIN = [
   'worktree /code/app\nHEAD aaa\nbranch refs/heads/main',
   'worktree /code/app-done\nHEAD bbb\nbranch refs/heads/done',
   'worktree /code/app-wip\nHEAD ccc\nbranch refs/heads/wip',
   'worktree /code/app-fresh\nHEAD aaa\nbranch refs/heads/fresh',
+  ...MANY,
 ].join('\n\n')
 
 const PRS = JSON.stringify([
@@ -54,7 +56,7 @@ describe('worktrees', () => {
       await $.command.run({ command: 'worktrees', args: '' } as never)
 
       const band = await $.ui.mount({ plugin: 'worktrees', surface, component: 'AbovePrompt', props: BAND })
-      expect((await band.find({ type: 'Button', key: 'open-worktrees' }))?.props.label).toBe('3 worktrees')
+      expect((await band.find({ type: 'Button', key: 'open-worktrees' }))?.props.label).toBe('63 worktrees')
       expect(await band.find({ text: /1 merged, can go/ })).toBeDefined()
       expect(await band.find({ text: 'beneath' })).toBeDefined()
     })
@@ -71,6 +73,7 @@ describe('worktrees', () => {
     await $.command.run({ command: 'worktrees', args: '' } as never)
 
     const pane = await $.ui.mount({ plugin: 'worktrees', surface: 'desktop', component: 'Pane', requestId: 'worktrees', props: PANE })
+    expect(JSON.stringify(await pane.drawn()).length < 100_000).toBe(true)
     expect(await pane.find({ text: '#7 merged' })).toBeDefined()
     expect(await pane.find({ text: '#9 open' })).toBeDefined()
     expect(await pane.find({ text: '1 changed' })).toBeDefined()
