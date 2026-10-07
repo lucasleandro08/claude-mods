@@ -1,7 +1,7 @@
 {
   "name": "docker-pane",
   "displayName": "Docker Pane",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "A Docker chip above the prompt and a Dracula-themed containers pane grouped by compose project: ports, health, Start/Stop/Restart by container name, logs and compose Recreate in the app's Terminal, and a warning when a container is older than your last git checkout.",
   "author": {
     "name": "Lucas Leandro",

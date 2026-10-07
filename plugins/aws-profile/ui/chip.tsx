@@ -48,7 +48,7 @@ export function ProfileChip({ ui, profile, sessions, pending, isProduction, onLo
 export function profileChip(profile: string, sessions: SessionStatus[], pending: string[], isProduction: (name: string) => boolean): Chip {
   if (sessions.length === 0) {
     const tone = profile === '' ? 'muted' : isProduction(profile) ? 'bad' : 'text'
-    return { icon: '☁', tone: 'warn', parts: [{ text: profile === '' ? 'no AWS_PROFILE' : profile, tone }] }
+    return { icon: '☁', label: 'aws', tone: 'warn', parts: [{ text: profile === '' ? 'no AWS_PROFILE' : profile, tone }] }
   }
   const parts: ChipPart[] = sessions.flatMap(({ name, state }): ChipPart[] => {
     const label = `${name === profile ? '● ' : ''}${name}`
@@ -58,5 +58,5 @@ export function profileChip(profile: string, sessions: SessionStatus[], pending:
     if (state === 'checking') return [{ text: `${label} …`, tone: 'muted' }]
     return [{ text: `${label} ✗ login`, tone: 'bad', action: `login:${name}` }]
   })
-  return { icon: '☁', tone: 'warn', parts }
+  return { icon: '☁', label: 'aws', tone: 'warn', parts }
 }

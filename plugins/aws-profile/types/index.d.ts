@@ -1,6 +1,6 @@
 export type ChipTone = 'text' | 'muted' | 'ok' | 'warn' | 'bad' | 'info' | 'accent'
 export type ChipPart = { text: string; tone: ChipTone; bold?: boolean; action?: string }
-export type Chip = { icon: string; tone: ChipTone; parts: ChipPart[] }
+export type Chip = { icon: string; label: string; tone: ChipTone; parts: ChipPart[] }
 export type ChipPress = { plugin: string; action: string; at: number }
 
 export type AwsProfile = string

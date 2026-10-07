@@ -26,9 +26,10 @@ export function prChip(rows: PrRow[]): Chip {
   const findings = rows.filter(r => r.codex === 'findings').length
   return {
     icon: '⑂',
+    label: 'prs',
     tone: 'accent',
     parts: [
-      { text: rows.length === 0 ? 'PRs' : `${rows.length} PRs`, tone: 'text', action: 'open' },
+      { text: rows.length === 0 ? 'open' : `${rows.length} open`, tone: 'text', action: 'open' },
       ...(failing > 0 ? [{ text: `✗ ${failing} CI`, tone: 'bad' as const }] : []),
       ...(findings > 0 ? [{ text: `⚠ ${findings} Codex`, tone: 'warn' as const }] : []),
     ],

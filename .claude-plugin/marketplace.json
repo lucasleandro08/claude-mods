@@ -10,7 +10,7 @@
       "name": "mod-manager",
       "source": "./plugins/mod-manager",
       "description": "A Dracula-themed pane to install the Dracula mods and turn them on and off. Every other mod ships off; this one lists them all and remembers your choice across sessions.",
-      "version": "2.4.0",
+      "version": "2.5.0",
       "homepage": "https://github.com/lucasleandro08/claude-mods",
       "repository": "https://github.com/lucasleandro08/claude-mods"
     },
@@ -18,7 +18,7 @@
       "name": "live-diff",
       "source": "./plugins/live-diff",
       "description": "A Dracula-themed pane with the diff of every Edit and Write Claude makes in the session, a file navigator and line numbers.",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "homepage": "https://github.com/lucasleandro08/claude-mods",
       "repository": "https://github.com/lucasleandro08/claude-mods"
     },
@@ -26,7 +26,7 @@
       "name": "kube-pane",
       "source": "./plugins/kube-pane",
       "description": "A kubectl context chip above the prompt and a Dracula-themed pods pane: switch context for Claude's session without touching your kubeconfig, filter pods, and open a shell in any container from the app's Terminal.",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "homepage": "https://github.com/lucasleandro08/claude-mods",
       "repository": "https://github.com/lucasleandro08/claude-mods"
     },
@@ -34,7 +34,7 @@
       "name": "pr-pane",
       "source": "./plugins/pr-pane",
       "description": "Your open pull requests in a Dracula-themed pane: CI, Codex review and whether each one already reached your integration branch, plus a chip above the prompt that flags failing CI.",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "homepage": "https://github.com/lucasleandro08/claude-mods",
       "repository": "https://github.com/lucasleandro08/claude-mods"
     },
@@ -74,7 +74,7 @@
       "name": "aws-profile",
       "source": "./plugins/aws-profile",
       "description": "Shows each AWS profile above the prompt with whether its login still works, a one-click `aws sso login` in the app's Terminal for the expired ones, and the AWS_PROFILE Claude Code runs with. Production profiles are red.",
-      "version": "2.1.0",
+      "version": "2.1.1",
       "homepage": "https://github.com/lucasleandro08/claude-mods",
       "repository": "https://github.com/lucasleandro08/claude-mods"
     },
@@ -82,7 +82,7 @@
       "name": "docker-pane",
       "source": "./plugins/docker-pane",
       "description": "A Docker chip above the prompt and a Dracula-themed containers pane grouped by compose project: ports, health, Start/Stop/Restart by container name, logs and compose Recreate in the app's Terminal, and a warning when a container is older than your last git checkout.",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "homepage": "https://github.com/lucasleandro08/claude-mods",
       "repository": "https://github.com/lucasleandro08/claude-mods"
     },
@@ -90,7 +90,7 @@
       "name": "deploy-watch",
       "source": "./plugins/deploy-watch",
       "description": "Watches AWS CodeBuild projects: a chip above the prompt with the last build, a warning when a push to the deploy branch started no build, and a pane with recent builds, their logs in the app's Terminal and a Start build button.",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "homepage": "https://github.com/lucasleandro08/claude-mods",
       "repository": "https://github.com/lucasleandro08/claude-mods"
     },
@@ -98,7 +98,7 @@
       "name": "worktrees",
       "source": "./plugins/worktrees",
       "description": "A chip with your git worktrees and a pane that shows each one's branch, uncommitted changes and pull request, opens it in the app's Terminal and removes the clean ones whose branch is merged.",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "homepage": "https://github.com/lucasleandro08/claude-mods",
       "repository": "https://github.com/lucasleandro08/claude-mods"
     }

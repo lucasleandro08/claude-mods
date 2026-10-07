@@ -10,7 +10,7 @@ import type { Chip } from '../src/shared/chip'
 import { ModsPane } from '../ui/pane'
 
 const PANE_ID = 'mod-manager'
-const VERSION = '2.4.0'
+const VERSION = '2.5.0'
 const REFRESH_MS = 10_000
 const BAR_BEAT_MS = 10_000
 

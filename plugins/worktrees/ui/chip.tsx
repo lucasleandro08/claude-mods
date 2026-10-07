@@ -20,6 +20,7 @@ export function WorktreesChip({ ui, total, merged, onOpen }: { ui: Ui; total: nu
 export function worktreesChip(total: number, merged: number): Chip {
   return {
     icon: '🌳',
+    label: 'worktrees',
     tone: 'ok',
     parts: [
       { text: `${total} worktree${total === 1 ? '' : 's'}`, tone: 'text', action: 'open' },

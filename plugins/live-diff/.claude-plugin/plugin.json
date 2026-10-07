@@ -1,7 +1,7 @@
 {
   "name": "live-diff",
   "displayName": "Live Diff",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "A Dracula-themed pane with the diff of every Edit and Write Claude makes in the session, a file navigator and line numbers.",
   "author": {
     "name": "Lucas Leandro",

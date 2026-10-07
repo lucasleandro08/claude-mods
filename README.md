@@ -49,7 +49,7 @@ The marketplace is named `dracula-mods`. Open `/mods` (or click the `⚙ Mods` c
 | deploy-watch | Projects (`name=branch`, comma-separated) · AWS profile · region · poll interval · missing build warning · production pattern · aws path | none · CLI default · profile's · 60 s · 3 min · `prod` · PATH |
 | worktrees | Roots (folders holding your repos) · refresh interval · gh path | session repo only · 5 min · PATH |
 
-With the mod-manager on, every mod's chip is drawn in **one bar** above the prompt (`⚙ 11/11  Δ 21 edits  ⎈ prod  ☁ dev ✓ …`), wrapping only between chips; each mod publishes its chip as state and the bar sends presses back to it. Without the manager, or if it stops, each mod draws its own row again. Either way the band keeps whatever other mods draw beneath it.
+With the mod-manager on, every mod's chip is drawn in **one bar** above the prompt: a tile per mod, its name dimmed over its value (like a usage band), wrapping between tiles with a blank row between lines; each mod publishes its chip as state and the bar sends presses back to it. Without the manager, or if it stops, each mod draws its own row again. Either way the band keeps whatever other mods draw beneath it.
 
 ## Rolling out to a whole organization
 

@@ -40,13 +40,13 @@ const OPEN = { command: 'mods', args: '' } as never
 
 const fakeDocker: Register = on => {
   on('session.start', async ($, e, next) => {
-    await $.state.set({ plugin: 'docker-pane', key: 'chip' }, { icon: '🐳', tone: 'info', parts: [{ text: '3 up', tone: 'text', action: 'open' }, { text: '⚠ 1 stale', tone: 'warn' }] })
+    await $.state.set({ plugin: 'docker-pane', key: 'chip' }, { icon: '🐳', label: 'docker', tone: 'info', parts: [{ text: '3 up', tone: 'text', action: 'open' }, { text: '⚠ 1 stale', tone: 'warn' }] })
     return next(e)
   })
   on('state.set', async ($, e, next) => {
     const ran = await next(e)
     if (e.plugin === 'mod-manager' && e.key === 'press') {
-      await $.state.set({ plugin: 'docker-pane', key: 'chip' }, { icon: '🐳', tone: 'info', parts: [{ text: 'pressed open', tone: 'text', action: 'open' }] })
+      await $.state.set({ plugin: 'docker-pane', key: 'chip' }, { icon: '🐳', label: 'docker', tone: 'info', parts: [{ text: 'pressed open', tone: 'text', action: 'open' }] })
     }
     return ran
   })

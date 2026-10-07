@@ -21,6 +21,7 @@ export function ContextChip({ ui, context, isProduction, onOpen }: { ui: Ui; con
 export function contextChip(context: string, isProduction: boolean): Chip {
   return {
     icon: '⎈',
+    label: 'kube',
     tone: isProduction ? 'bad' : 'info',
     parts: [
       { text: context === '' ? 'kubectl…' : shortContext(context), tone: 'text', action: 'open' },

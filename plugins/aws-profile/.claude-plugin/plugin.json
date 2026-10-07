@@ -1,7 +1,7 @@
 {
   "name": "aws-profile",
   "displayName": "AWS Profile",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "Shows each AWS profile above the prompt with whether its login still works, a one-click `aws sso login` in the app's Terminal for the expired ones, and the AWS_PROFILE Claude Code runs with. Production profiles are red.",
   "author": {
     "name": "Lucas Leandro",

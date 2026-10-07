@@ -18,5 +18,5 @@ export function DiffChip({ ui, count, onOpen }: { ui: Ui; count: number; onOpen:
 }
 
 export function diffChip(count: number): Chip {
-  return { icon: 'Δ', tone: 'accent', parts: [{ text: count === 0 ? 'diff' : `${count} ${count === 1 ? 'edit' : 'edits'}`, tone: 'text', action: 'open' }] }
+  return { icon: 'Δ', label: 'diff', tone: 'accent', parts: [{ text: count === 0 ? 'none' : `${count} ${count === 1 ? 'edit' : 'edits'}`, tone: 'text', action: 'open' }] }
 }

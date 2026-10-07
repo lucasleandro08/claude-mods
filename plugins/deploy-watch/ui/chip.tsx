@@ -41,5 +41,5 @@ export function deployChip(projects: { name: string; state: ChipState }[]): Chip
     { text: KIND_STYLE[state.kind].icon, tone: KIND_TONE[state.kind] },
     { text: projects.length > 1 ? `${name} ${state.label}` : state.label, tone: 'text', action: 'open' },
   ])
-  return { icon: '🚀', tone: 'accent', parts }
+  return { icon: '🚀', label: 'deploy', tone: 'accent', parts }
 }

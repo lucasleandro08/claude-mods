@@ -1,7 +1,7 @@
 {
   "name": "kube-pane",
   "displayName": "Kube Pane",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "A kubectl context chip above the prompt and a Dracula-themed pods pane: switch context for Claude's session without touching your kubeconfig, filter pods, and open a shell in any container from the app's Terminal.",
   "author": {
     "name": "Lucas Leandro",

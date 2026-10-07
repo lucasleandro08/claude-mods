@@ -23,6 +23,7 @@ export function DockerChip({ ui, running, stale, unhealthy, isDown, onOpen }: Ch
 export function dockerChip(running: number, stale: number, unhealthy: number, isDown: boolean): Chip {
   return {
     icon: '🐳',
+    label: 'docker',
     tone: 'info',
     parts: [
       { text: isDown ? 'docker off' : `${running} up`, tone: 'text', action: 'open' },
