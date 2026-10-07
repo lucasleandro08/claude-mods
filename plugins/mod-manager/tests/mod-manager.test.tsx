@@ -84,19 +84,44 @@ describe('mod-manager', () => {
     expect(writes[1]).toContain('"kube-pane": false')
   })
 
-  test('Install runs the claude CLI against dracula-mods', async ($, on) => {
+  test('Install runs the claude CLI against dracula-mods and reloads the plugins', async ($, on) => {
     const calls: string[] = []
+    const commands: string[] = []
     world(on, {})
     on('process.run', ($, e) => {
       calls.push(e.argv.join(' '))
       return out(0, '{"command":"install","outcome":"installed"}')
     })
+    on('command.run', { command: 'reload-plugins' }, ($, e) => {
+      commands.push(e.command)
+      return { text: 'Reloaded' } as never
+    })
+    const clock = mock.clock(on)
     await $.command.run(OPEN)
 
     const pane = await $.ui.mount({ plugin: 'mod-manager', surface: 'desktop', component: 'Pane', requestId: 'mod-manager', props: PANE })
     await pane.press({ key: 'install-kube-pane' })
+    await clock.advance(1)
     expect(calls).toEqual(['claude plugin install kube-pane@dracula-mods --scope user --json'])
-    expect(await pane.find({ text: /Installed\. Turn it on/ })).toBeDefined()
+    expect(await pane.find({ text: /Installed and reloaded/ })).toBeDefined()
+    expect(commands).toEqual(['reload-plugins'])
+  })
+
+  test('Reload falls back to the prompt when the command cannot run here', async ($, on) => {
+    const filled: string[] = []
+    world(on, {})
+    on('command.run', { command: 'reload-plugins' }, () => ({ text: "/reload-plugins isn't available over a remote connection in this session." }) as never)
+    on('prompt.fill', ($, e) => {
+      filled.push(e.text)
+      return { isFilled: true } as never
+    })
+    const clock = mock.clock(on)
+    await $.command.run(OPEN)
+    const pane = await $.ui.mount({ plugin: 'mod-manager', surface: 'desktop', component: 'Pane', requestId: 'mod-manager', props: PANE })
+    await pane.press({ key: 'reload' })
+    await clock.advance(1)
+    await clock.settle()
+    expect(filled).toEqual(['/reload-plugins'])
   })
 
   test('Install shows the CLI error', async ($, on) => {
@@ -133,10 +158,18 @@ describe('mod-manager', () => {
       installed.push(String(e.argv[3]))
       return out(0, '{"outcome":"installed"}')
     })
+    let reloads = 0
+    on('command.run', { command: 'reload-plugins' }, () => {
+      reloads++
+      return { text: 'Reloaded' } as never
+    })
+    const clock = mock.clock(on)
     await $.command.run(OPEN)
 
     const pane = await $.ui.mount({ plugin: 'mod-manager', surface: 'desktop', component: 'Pane', requestId: 'mod-manager', props: PANE })
     await pane.press({ key: 'install-all' })
+    await clock.advance(1)
+    expect(reloads).toBe(1)
     expect(installed).toEqual([
       'pr-pane@dracula-mods',
       'guardrails@dracula-mods',

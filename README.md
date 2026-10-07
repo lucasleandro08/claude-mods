@@ -19,7 +19,7 @@ The marketplace is named `dracula-mods`. Open `/mods` (or click the `⚙ Mods` c
 
 | Mod | What it does | Commands |
 | --- | --- | --- |
-| **mod-manager** | The only mod on by default: a pane that lists every mod with an on/off switch and an **Install** button for the ones not installed yet (it runs `claude plugin install`, or puts the `/plugin install` command in your prompt when the CLI is not found), plus a `⚙ Mods · n/11` chip above the prompt. | `/mods` |
+| **mod-manager** | The only mod on by default: a pane that lists every mod with an on/off switch and an **Install** button for the ones not installed yet (it runs `claude plugin install`, or puts the `/plugin install` command in your prompt when the CLI is not found), plus a `⚙ Mods · n/11` chip above the prompt. After an install it runs `/reload-plugins`, so the new mod shows up in the session you are in; **↻ Reload** does the same by hand. | `/mods`, `/mods reload` |
 | **live-diff** | A pane with the diff of every `Edit` and `Write` Claude makes: file navigator with `M`/`A` status, `+/-` counts, line numbers and red/green rows. A `Δ Diff` chip above the prompt reopens it. | `/diff`, `/diff-clear` |
 | **kube-pane** | A `⎈ context` chip above the prompt (red on production) and a pods pane: context and namespace pickers, filter, pages, unhealthy pods first, and a `⌘ Shell` button that opens `kubectl exec` in the app's Terminal, with a container picker for multi-container pods. Switching context only affects Claude's session: your kubeconfig is never written. | `/pods` |
 | **pr-pane** | Your open pull requests grouped by repo, with CI status, the Codex review state and whether each PR already reached your integration branch. A `⑂ PRs` chip flags failing CI and Codex findings. Needs the [GitHub CLI](https://cli.github.com). | `/prs` |
@@ -64,7 +64,14 @@ scripts/check.sh            # validate + test every plugin (CLAUDE_BIN overrides
 scripts/check.sh kube-pane  # only one
 ```
 
-Load your checkout instead of the published version by pointing `CLAUDE_CODE_PLUGIN_DIRS` (in the `env` block of `~/.claude/settings.json`) at the plugin folders, separated by `:`. Interactive sessions reload a plugin when its files change.
+Load your checkout instead of the published version by adding it as a local marketplace and installing from it:
+
+```
+claude plugin marketplace add ~/claude-mods
+claude plugin install mod-manager@dracula-mods --scope user
+```
+
+Plugins of a marketplace added from a local folder load in place, so edits and newly installed mods reach open sessions with `/reload-plugins` (or **↻ Reload** in `/mods`); see [Plugin loading](https://code.claude.com/docs/en/plugins/loading.md#in-place-and-copied-plugins). Avoid `CLAUDE_CODE_PLUGIN_DIRS` for this: it is read only when a session starts, so a mod added to it shows up only in new sessions.
 
 ### Layout
 

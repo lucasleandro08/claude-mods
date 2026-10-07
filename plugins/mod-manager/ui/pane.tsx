@@ -15,9 +15,10 @@ export type ModsPaneProps = {
   onToggle: (mod: ModEntry) => unknown
   onInstall: (mod: ModEntry) => unknown
   onInstallAll: (names: string[]) => unknown
+  onReload: () => unknown
 }
 
-export function ModsPane({ ui, mods, version, error, installing, notices, onToggle, onInstall, onInstallAll }: ModsPaneProps) {
+export function ModsPane({ ui, mods, version, error, installing, notices, onToggle, onInstall, onInstallAll, onReload }: ModsPaneProps) {
   const { Box, Text, Button } = ui
   const on = mods.filter(m => m.state === 'on').length
   const missing = mods.filter(m => m.state === 'missing' && !installing.includes(m.name)).map(m => m.name)
@@ -31,6 +32,7 @@ export function ModsPane({ ui, mods, version, error, installing, notices, onTogg
         {missing.length > 0 && installing.length === 0 && (
           <Button key="install-all" label={`Install all (${missing.length})`} dimColor onPress={() => onInstallAll(missing)} />
         )}
+        <Button key="reload" label="↻ Reload" dimColor onPress={onReload} />
       </Box>
       <Text color={DRACULA.comment} italic>Turning a mod on or off reloads it right away.</Text>
       {error !== '' && <Text color={DRACULA.red}>{error}</Text>}

@@ -9,7 +9,7 @@ import { ModsChip } from '../ui/chip'
 import { ModsPane } from '../ui/pane'
 
 const PANE_ID = 'mod-manager'
-const VERSION = '2.2.0'
+const VERSION = '2.3.0'
 const REFRESH_MS = 10_000
 
 const mods = atom({ plugin: 'mod-manager', key: 'mods' } as const, [] as ModEntry[])
@@ -66,13 +66,27 @@ async function runInstall($: EngineInterface, claudePath: string, name: string) 
   return undefined
 }
 
-async function install($: EngineInterface, claudePath: string, name: string) {
+// /reload-plugins picks up new installs and code edits in this session; it cannot run inside the hook a turn waits on
+function reloadPlugins($: EngineInterface) {
+  const byHand = async () => {
+    const filled = await $.prompt.fill({ text: '/reload-plugins', mode: 'replace' }).catch(() => ({ isFilled: false }))
+    if (!filled.isFilled) $.ui.toast('Run /reload-plugins to load the change.')
+  }
+  $.clock.after(0, () => {
+    void $.command.run({ command: 'reload-plugins', args: '' } as never)
+      .then(ran => (/(isn['’]t|not) available|unknown/i.test(String((ran as { text?: string }).text ?? '')) ? byHand() : undefined))
+      .catch(byHand)
+  })
+}
+
+async function install($: EngineInterface, claudePath: string, name: string, reload = true) {
   await update($, installing, list => [...list, name])
   await setNotice($, name, { tone: 'info', text: 'Installing…' })
   try {
     const result = await runInstall($, claudePath, name)
     if (result) {
       await setNotice($, name, result)
+      if (result.tone === 'ok' && reload) reloadPlugins($)
       return result.tone === 'ok'
     }
     const command = installCommand(name, await read($, marketplace))
@@ -91,9 +105,12 @@ async function install($: EngineInterface, claudePath: string, name: string) {
 }
 
 async function installAll($: EngineInterface, claudePath: string, names: readonly string[]) {
+  let installed = 0
   for (const name of names) {
-    if (!(await install($, claudePath, name))) return
+    if (!(await install($, claudePath, name, false))) break
+    installed++
   }
+  if (installed > 0) reloadPlugins($)
 }
 
 async function openPane($: EngineInterface) {
@@ -128,6 +145,10 @@ export const register: Register = (on, options) => {
         ].join('\n'),
       }
     }
+    if (e.args.trim() === 'reload') {
+      reloadPlugins($)
+      return { text: 'Reloading plugins…' }
+    }
     await openPane($)
     return { text: 'Mods pane opened.' }
   })
@@ -157,6 +178,7 @@ export const register: Register = (on, options) => {
       onToggle={mod => toggle($, mod)}
       onInstall={mod => install($, claudePath, mod.name)}
       onInstallAll={names => installAll($, claudePath, names)}
+      onReload={() => reloadPlugins($)}
     />
   ))
 }

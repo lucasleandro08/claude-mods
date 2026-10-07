@@ -28,7 +28,7 @@ export function readInstallResult(exitCode: number, stdout: string, stderr: stri
   }
 
   if (exitCode === 0 && parsed.outcome !== 'failed') {
-    return { tone: 'ok', text: 'Installed. Turn it on; if it does not show up, start a new session.' }
+    return { tone: 'ok', text: 'Installed and reloaded. Turn it on.' }
   }
   const reason = parsed.message ?? stderr.trim().split('\n').pop() ?? `claude exited with ${exitCode}`
   return { tone: 'error', text: `Install failed: ${reason}` }

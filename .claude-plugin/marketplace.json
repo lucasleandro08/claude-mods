@@ -10,7 +10,7 @@
       "name": "mod-manager",
       "source": "./plugins/mod-manager",
       "description": "A Dracula-themed pane to install the Dracula mods and turn them on and off. Every other mod ships off; this one lists them all and remembers your choice across sessions.",
-      "version": "2.2.0",
+      "version": "2.3.0",
       "homepage": "https://github.com/lucasleandro08/claude-mods",
       "repository": "https://github.com/lucasleandro08/claude-mods"
     },
