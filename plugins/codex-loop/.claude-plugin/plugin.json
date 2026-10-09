@@ -1,7 +1,7 @@
 {
   "name": "codex-loop",
   "displayName": "Codex Loop",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "/codex-loop <PR> hands Claude a review loop with the Codex GitHub bot: request a review, weigh each finding, fix or 👎 it, reply, resolve and repeat until 👍.",
   "author": {
     "name": "Lucas Leandro",
@@ -23,6 +23,18 @@
       "title": "Codex bot login",
       "description": "GitHub login of the Codex review bot.",
       "default": "chatgpt-codex-connector[bot]"
+    },
+    "maxRounds": {
+      "type": "number",
+      "title": "Maximum review rounds",
+      "description": "Rounds of @codex review before the loop stops even without a 👍. /codex-loop <PR> --max <n> overrides it for one run.",
+      "default": 5
+    },
+    "waitMinutes": {
+      "type": "number",
+      "title": "Wait for Codex (minutes)",
+      "description": "How long a round waits for Codex to answer before the loop stops.",
+      "default": 15
     }
   },
   "types": "./types/index.d.ts"

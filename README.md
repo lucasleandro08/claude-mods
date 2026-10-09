@@ -25,7 +25,7 @@ The marketplace is named `dracula-mods`. Open `/mods` (or click the `⚙ Mods` c
 | **pr-pane** | Your open pull requests grouped by repo, with CI status, the Codex review state and whether each PR already reached your integration branch. A `⑂ PRs` chip flags failing CI and Codex findings. Needs the [GitHub CLI](https://cli.github.com). | `/prs` |
 | **guardrails** | Blocks risky commands before they run: killing a port owned by a Docker container, `pkill docker`, printing secrets (`env`, `printenv`, `echo $API_TOKEN`), rewriting the kubeconfig. Asks before `kubectl` writes on production contexts. Each rule can be switched off. | — |
 | **promote-branch** | `/promote` previews merging the current branch into your integration branch (commits, files, test files touched). `/promote go` does a full merge in a temporary worktree and pushes it, refusing dirty trees and protected branches. | `/promote`, `/promote go` |
-| **codex-loop** | Hands Claude the review loop with the Codex GitHub bot: request a review, weigh each finding, fix or 👎 it, reply, resolve, repeat until 👍. | `/codex-loop <PR>` |
+| **codex-loop** | Hands Claude the review loop with the Codex GitHub bot: request a review, weigh each finding, fix or 👎 it, reply, resolve, repeat until 👍, for at most 5 rounds (and 15 minutes of waiting per round) before it stops and reports what is still open. | `/codex-loop <PR> [--max <rounds>]` |
 | **turn-done** | A toast and a chime when a long turn finishes. | — |
 | **aws-profile** | Each AWS profile above the prompt with whether its login still works (`aws sts get-caller-identity`, only the exit code is kept). Expired ones get a **login** button that runs `aws sso login --profile …` in the app's Terminal and turns green once you finish. The `AWS_PROFILE` Claude Code runs with is marked `●`; production profiles are red. | — |
 | **docker-pane** | A `🐳 Docker · n up` chip (unhealthy and stale counts) and a pane grouped by compose project: ports, health, **Start/Stop/Restart** by container name (never by port), **Logs** and compose **Recreate** in the app's Terminal. Flags containers created before your last `git checkout` in the session's repo, the usual cause of a test failing for no reason. | `/docker` |
@@ -43,7 +43,7 @@ The marketplace is named `dracula-mods`. Open `/mods` (or click the `⚙ Mods` c
 | promote-branch | Target branch · protected branches | `staging` · `main,master` |
 | live-diff | Context lines · edits kept | 2 · 100 |
 | turn-done | Long turn threshold · play sound | 60 s · on |
-| codex-loop | Codex bot login | `chatgpt-codex-connector[bot]` |
+| codex-loop | Codex bot login · maximum review rounds · wait for Codex | `chatgpt-codex-connector[bot]` · 5 · 15 min |
 | aws-profile | Production pattern · profiles · check interval · aws path | `prod` · all · 5 min · PATH |
 | docker-pane | Refresh interval · docker path | 60 s (10 s while open) · PATH |
 | deploy-watch | Projects (`name=branch`, comma-separated) · AWS profile · region · poll interval · missing build warning · production pattern · aws path | none · CLI default · profile's · 60 s · 3 min · `prod` · PATH |

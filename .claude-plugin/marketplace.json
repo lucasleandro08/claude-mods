@@ -58,7 +58,7 @@
       "name": "codex-loop",
       "source": "./plugins/codex-loop",
       "description": "/codex-loop <PR> hands Claude a review loop with the Codex GitHub bot: request a review, weigh each finding, fix or 👎 it, reply, resolve and repeat until 👍.",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "homepage": "https://github.com/lucasleandro08/claude-mods",
       "repository": "https://github.com/lucasleandro08/claude-mods"
     },
