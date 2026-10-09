@@ -3,10 +3,11 @@ import type { EngineInterface, PluginOptions, Register } from 'claude-code'
 
 import type { Goal, Profile } from '../types'
 import {
-  addGoal, allowRules, answerGoal, BRIEFING_TASK, briefingCron, briefingPrompt, DEFAULT_PROFILE, DEFAULT_RULES, dotPaths, everyMinutesCron,
+  addGoal, allowRules, answerGoal, safeRun, BRIEFING_TASK, briefingCron, briefingPrompt, DEFAULT_PROFILE, DEFAULT_RULES, dotPaths, everyMinutesCron,
   IDLE_ROUND, newlyWaiting, parseGoals, parseRound, stampChanged, stampRound, parseProfile, removeGoal, serialize, setStatus, taskPointer, WORK_TASK, workPrompt,
 } from '../src/dot'
 import { isOn, OFF_TEXT, parseState, statePath } from '../src/shared/toggle'
+import { binaryCandidates } from '../src/shared/bin'
 import { barIsLive, sameChip, type Chip, type ChipPress } from '../src/shared/chip'
 import { DRACULA } from '../src/shared/theme'
 import { dotChip } from '../ui/chip'
@@ -240,6 +241,25 @@ export const register: Register = (on, options) => {
   on('tool.call', { tool: 'Read' }, async ($, e, next) => {
     await markRound($, String(e.file_path ?? '')).catch(() => undefined)
     return next(e)
+  })
+
+  // Approval prompts hang an unattended round, so inside one the dot runs the read-only commands itself and refuses the rest
+  on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
+    if (!(await read($, inRound))) return next(e)
+    const home = await $.env.get('HOME').catch(() => undefined)
+    const safe = safeRun(String(e.command ?? ''), home)
+    if (!safe) return { deny: ROUND_DENY }
+    const [name, ...args] = safe.argv
+    for (const bin of binaryCandidates(name, home)) {
+      try {
+        const ran = await $.process.run([bin, ...args], { cwd: safe.cwd, timeoutMs: 30_000, env: { GIT_PAGER: 'cat', PAGER: 'cat', GH_PAGER: 'cat' } })
+        const output = [ran.stdout, ran.stderr].filter(Boolean).join('\n').slice(0, 30_000)
+        return ran.exitCode === 0 ? { deny: `(ran by the dot, exit 0)\n${output}` } : { deny: `(ran by the dot, exit ${ran.exitCode})\n${output}` }
+      } catch {
+        continue
+      }
+    }
+    return { deny: `${name} isn't installed where the dot can run it. ${ROUND_DENY}` }
   })
 
   on('tool.check', async ($, e, next) => {

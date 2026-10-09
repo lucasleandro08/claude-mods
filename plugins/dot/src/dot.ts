@@ -184,6 +184,58 @@ export function allowRules(): string[] {
   return [`Read(~/${DOT_DIR}/**)`, `Edit(~/${DOT_DIR}/**)`, ...SAFE_COMMANDS.map(command => `Bash(${command}:*)`)]
 }
 
+export type SafeRun = { argv: string[]; cwd: string | undefined }
+
+// Shell-like split: quotes group and are dropped, so --format="%h %s" stays one word
+function words(text: string): string[] {
+  const out: string[] = []
+  let word = ''
+  let quote = ''
+  let started = false
+  for (const char of text) {
+    if (quote) {
+      if (char === quote) quote = ''
+      else word += char
+    } else if (char === '"' || char === "'") {
+      quote = char
+      started = true
+    } else if (/\s/.test(char)) {
+      if (started || word) out.push(word)
+      word = ''
+      started = false
+    } else {
+      word += char
+    }
+  }
+  if (started || word) out.push(word)
+  return out
+}
+
+// Splits "cd <dir> && git log ..." or "git -C <dir> log ..." into argv and cwd when it is one of SAFE_COMMANDS and nothing else
+export function safeRun(command: string, home: string | undefined): SafeRun | undefined {
+  let rest = command.trim()
+  let cwd: string | undefined
+  const cd = /^cd\s+("[^"]+"|'[^']+'|\S+)\s*&&\s*/.exec(rest)
+  if (cd) {
+    cwd = cd[1].replace(/^["']|["']$/g, '')
+    rest = rest.slice(cd[0].length)
+  }
+  if (/[|;&<>`$()\n\\]/.test(rest.replace(/"[^"]*"|'[^']*'/g, ''))) return undefined
+  const argv = words(rest)
+  if (argv.length < 2) return undefined
+  if (argv[0] === 'git' && argv[1] === '-C' && argv[2]) {
+    cwd = argv[2]
+    argv.splice(1, 2)
+  }
+  const head = `${argv[0]} ${argv[1]}${argv[0] === 'gh' ? ` ${argv[2] ?? ''}` : ''}`
+  if (!SAFE_COMMANDS.includes(head)) return undefined
+  if (argv.some(arg => /^--(output|exec|ext-diff|textconv)\b|^-o$|^--web$/.test(arg))) return undefined
+  const branchFlag = /^(-a|-r|-v|-vv|--all|--remotes|--list|--show-current|--verbose|--sort=.*|--format=.*|--contains|--merged|--no-merged)$/
+  if (head === 'git branch' && !argv.slice(2).every(arg => branchFlag.test(arg))) return undefined
+  if (cwd && home) cwd = cwd.replace(/^~(?=\/|$)/, home)
+  return { argv, cwd }
+}
+
 export const DEFAULT_RULES = `# Rules
 
 Each action falls in one level. When unsure, use the stricter one.
@@ -223,8 +275,9 @@ export function workPrompt(name: string, paths: DotPaths) {
 
 Nobody can approve anything during this round: a tool call that asks for approval hangs it forever. So:
 - prefer the Read, Grep and Glob tools;
-- in the shell, run only these read-only commands, as "cd <repository> && <command>": ${SAFE_COMMANDS.join(', ')}. No pipes, no "git -C", nothing else chained;
-- if the goal needs any other command, do not run it: set the goal to "waiting" and ask the user to run it or to allow it.
+- in the shell, run only these read-only commands, written as "cd <repository> && <command>": ${SAFE_COMMANDS.join(', ')}. No pipes, nothing else chained;
+- those come back as an error marked "(ran by the dot, exit N)" followed by the real output: read it as the command's result;
+- any other call is refused in this round; when the goal needs one, set the goal to "waiting" and ask the user to run it or to allow it.
 Never use the shell for bookkeeping. Never print or store secrets. Write notes in the language the goal was written in.`
 }
 
