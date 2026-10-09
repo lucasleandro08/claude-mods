@@ -208,7 +208,7 @@ export function workPrompt(name: string, paths: DotPaths, allowedTools: readonly
 1. Read ${paths.profile}. If "paused" is true, stop now without doing anything.
    Then write ${paths.round} as {"state": "running", "goal": "<title of the goal you pick>", "summary": ""} once you pick a goal (step 3).
 2. Read ${paths.goals} (a JSON array of goals), ${paths.rules} and ${paths.memory}.
-3. Pick ONE goal: the oldest with status "working", else the oldest "queued". If none, stop now: do not invent work.
+3. Pick ONE goal: the oldest with status "queued" first (a new question or an answer from the user, so it never waits behind long jobs), else the oldest "working". If none, stop now: do not invent work.
 4. Set it to "working" and work on it for this round only. Follow the rules file: "Hand off" is never done. "Ask first" is done only once the user approved it: a "You: ..." note on that goal saying yes, "pode", "pode fazer", "faz" or similar counts as approval for what you proposed. Then do it, in parts across rounds when it is big, without asking again.
 5. Before finishing, update that goal in ${paths.goals} (keep every other goal untouched, keep valid JSON):
    - ALWAYS append one note to "notes" written to the user, as a chat reply: the answer itself when the goal is a question, otherwise what you did or found and what is next. Never finish a round without this note;

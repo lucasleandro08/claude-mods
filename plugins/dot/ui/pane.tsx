@@ -86,6 +86,7 @@ export function DotPane(props: DotPaneProps) {
         {threads.map(goal => (
           <Thread ui={ui} goal={goal} name={profile.name} unread={unread.has(goal.id)} emoji={profile.emoji} nextAt={clock(nextRoundAt(profile.everyMinutes, now))}
             running={round.state === 'running' && round.goal === goal.title}
+            busy={round.state === 'running'}
             onAnswer={props.onAnswer} onDone={props.onDone} onRemove={props.onRemove} />
         ))}
       </Box>
@@ -188,6 +189,7 @@ type ThreadProps = {
   emoji: string
   nextAt: string
   running: boolean
+  busy: boolean
   unread: boolean
   onAnswer: (id: string, answer: string) => unknown
   onDone: (id: string) => unknown
@@ -240,7 +242,7 @@ function Reply({ ui, id, name, emoji, text, tone, background }: { ui: Ui; id: st
 }
 
 // One goal as a short conversation; its actions show only while you hover it
-function Thread({ ui, goal, name, emoji, nextAt, running, unread, onAnswer, onDone, onRemove }: ThreadProps) {
+function Thread({ ui, goal, name, emoji, nextAt, running, busy, unread, onAnswer, onDone, onRemove }: ThreadProps) {
   const { Box, Text, Button } = ui
   const replies = goal.notes.filter(note => !note.startsWith('You: ')).length
   const state = goal.status === 'done'
@@ -248,7 +250,7 @@ function Thread({ ui, goal, name, emoji, nextAt, running, unread, onAnswer, onDo
     : unread && goal.status === 'working'
       ? { text: `✓ New reply · ${clock(goal.updatedAt)} · ${name} continues next round`, color: DRACULA.purple }
     : {
-        queued: { text: `${name} starts on this in the next round · ${nextAt}`, color: DRACULA.comment },
+        queued: { text: busy ? `Next in line: ${name} answers this right after the current round` : `${name} starts on this in the next round · ${nextAt}`, color: busy ? DRACULA.cyan : DRACULA.comment },
         working: { text: running ? `${name} is working on this…` : `${name} continues in the next round · ${nextAt}`, color: DRACULA.green },
         waiting: { text: `${name} needs your answer`, color: DRACULA.orange },
       }[goal.status]
