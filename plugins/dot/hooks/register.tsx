@@ -46,7 +46,7 @@ const USAGE = 'Usage: /dot · /dot <goal> · /dot pause | resume | run | on · /
 const profile = atom({ plugin: 'dot', key: 'profile' } as const, DEFAULT_PROFILE)
 const goals = atom({ plugin: 'dot', key: 'goals' } as const, [])
 const isOpen = atom({ plugin: 'dot', key: 'isOpen' } as const, false)
-const notice = atom({ plugin: 'dot', key: 'notice' } as const, '')
+const notice = atom({ plugin: 'dot', key: 'notice' } as const, null)
 
 type Settings = { workCron: string; briefingCron: string | undefined; openOnStart: boolean }
 
@@ -109,8 +109,8 @@ async function changeProfile($: EngineInterface, change: (current: Profile) => P
   await ensureFiles($)
 }
 
-async function say($: EngineInterface, text: string) {
-  await update($, notice, () => text)
+async function say($: EngineInterface, tone: 'ok' | 'error' | 'info', text: string) {
+  await update($, notice, () => ({ tone, text }))
 }
 
 // The scheduled-tasks tools belong to the desktop app; a refused or failed call resolves with isError instead of throwing
@@ -136,7 +136,7 @@ async function schedule($: EngineInterface, settings: Settings) {
   const briefed = settings.briefingCron === undefined || (await upsertTask($, BRIEFING_TASK, `${me.name} · briefing`, settings.briefingCron, p.briefing))
   if (worked && briefed) {
     await changeProfile($, current => ({ ...current, scheduled: true, paused: false }))
-    return say($, `${me.name} now works in the background (${settings.workCron}).`)
+    return say($, 'ok', `${me.name} now works in the background.`)
   }
   const ask = [
     `Set up the background work of my dot ${me.name} with the scheduled-tasks tools (create, or update if it exists):`,
@@ -145,19 +145,23 @@ async function schedule($: EngineInterface, settings: Settings) {
     `Then set "scheduled": true in ${p.profile}.`,
   ].filter(Boolean).join('\n')
   const filled = await $.prompt.fill({ text: ask, mode: 'replace' }).catch(() => ({ isFilled: false }))
-  await say($, filled.isFilled ? 'The setup request is in your prompt: press Enter.' : 'Could not reach the scheduled-tasks tools.')
+  await say($, filled.isFilled ? 'info' : 'error', filled.isFilled ? 'The setup request is in your prompt. Press Enter to finish it.' : "The scheduling tools aren't reachable from here. Run /dot on in a session of the desktop app.")
 }
 
 async function togglePause($: EngineInterface) {
   const paused = !(await read($, profile)).paused
   await changeProfile($, current => ({ ...current, paused }))
   for (const taskId of [WORK_TASK, BRIEFING_TASK]) await callTool($, 'mcp__scheduled-tasks__update_scheduled_task', { taskId, enabled: !paused })
-  await say($, paused ? 'Paused: no background rounds until you resume.' : 'Resumed.')
+  await say($, 'info', paused ? 'Paused. No rounds run until you resume.' : 'Resumed. The next round picks up the queue.')
 }
 
 async function runNow($: EngineInterface) {
+  const me = await read($, profile)
+  if (!me.scheduled) return say($, 'error', 'Background work is off. Turn it on first.')
   const ran = await callTool($, 'mcp__scheduled-tasks__run_scheduled_task', { taskId: WORK_TASK })
-  await say($, ran ? 'A work round started.' : 'Could not start a round: turn on background work first.')
+  await say($, ran ? 'ok' : 'error', ran
+    ? 'A round started. Progress shows up here as it works.'
+    : `A round is already running or waiting for your approval. Open the "${me.name} · work" session in the sidebar.`)
 }
 
 async function openPane($: EngineInterface) {
@@ -204,11 +208,11 @@ export const register: Register = (on, options) => {
     }
     if (verb === 'run') {
       await runNow($)
-      return { text: await read($, notice) }
+      return { text: (await read($, notice))?.text ?? '' }
     }
     if (verb === 'on') {
       await schedule($, settings)
-      return { text: await read($, notice) }
+      return { text: (await read($, notice))?.text ?? '' }
     }
     if (verb === 'name') {
       const [name, emoji] = rest
@@ -255,8 +259,9 @@ export const register: Register = (on, options) => {
           ui={ui}
           profile={await read($, profile)}
           goals={await read($, goals)}
+          width={e.props.bodyColumns}
           notice={await read($, notice)}
-          memoryPath={(await paths($)).memory}
+          dotDir={(await paths($)).dir}
           onAdd={title => changeGoals($, (list, now) => addGoal(list, title, now))}
           onAnswer={(id, answer) => changeGoals($, (list, now) => answerGoal(list, id, answer, now))}
           onDone={id => changeGoals($, (list, now) => setStatus(list, id, 'done', now))}

@@ -42,9 +42,9 @@ const STYLE = `
 @keyframes fly{0%,100%{transform:translate(0,0)}50%{transform:translate(-6px,-4px)}}
 `
 
-function eyes(mood: Mood) {
+function eyes(mood: Mood, blink = false) {
   const p = PALETTE
-  if (mood === 'paused') {
+  if (mood === 'paused' || blink) {
     return `<path d="M38 55 q5 4 10 0 M62 55 q5 4 10 0" stroke="${p.ink}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`
   }
   const eye = (cx: number) => `<g class="eye">
@@ -64,17 +64,19 @@ function mouth(mood: Mood) {
     <path d="M51.2 67.6 l1.3 3.4 1.3-3 z" fill="#fff" stroke="${p.ink}" stroke-width=".5" stroke-linejoin="round"/>`
 }
 
-function effects(mood: Mood) {
+function effects(mood: Mood, frame: number) {
+  const pulse = [0.9, 1, 1.1, 1][frame % 4] ?? 1
+  const twinkle = (i: number) => ((frame + i) % 4 === 0 ? 0.25 : 1)
   const p = PALETTE
   if (mood === 'working') {
-    return `<circle class="ring" cx="55" cy="60" r="38" fill="none" stroke="${p.purple}" stroke-width="1.6"/>
-      <path class="spark" d="M16 30 l1.5 4 4 1.5 -4 1.5 -1.5 4 -1.5-4 -4-1.5 4-1.5z" fill="${p.gold}"/>
-      <path class="spark s2" d="M94 24 l1.2 3 3 1.2 -3 1.2 -1.2 3 -1.2-3 -3-1.2 3-1.2z" fill="${p.purple}"/>
-      <path class="spark s3" d="M98 72 l1 2.6 2.6 1 -2.6 1 -1 2.6 -1-2.6 -2.6-1 2.6-1z" fill="${p.green}"/>`
+    return `<circle class="ring" cx="55" cy="60" r="${(38 * pulse).toFixed(1)}" fill="none" stroke="${p.purple}" stroke-width="1.6" opacity="${(1.3 - pulse).toFixed(2)}"/>
+      <path class="spark" opacity="${twinkle(0)}" d="M16 30 l1.5 4 4 1.5 -4 1.5 -1.5 4 -1.5-4 -4-1.5 4-1.5z" fill="${p.gold}"/>
+      <path class="spark s2" opacity="${twinkle(1)}" d="M94 24 l1.2 3 3 1.2 -3 1.2 -1.2 3 -1.2-3 -3-1.2 3-1.2z" fill="${p.purple}"/>
+      <path class="spark s3" opacity="${twinkle(2)}" d="M98 72 l1 2.6 2.6 1 -2.6 1 -1 2.6 -1-2.6 -2.6-1 2.6-1z" fill="${p.green}"/>`
   }
   if (mood === 'waiting') {
-    return `<g class="bang"><circle cx="92" cy="22" r="10" fill="${p.orange}"/>
-      <rect x="90.6" y="15" width="2.8" height="8" rx="1.4" fill="${p.ink}"/><circle cx="92" cy="27" r="1.6" fill="${p.ink}"/></g>`
+    return `<g transform="rotate(${[-6, 0, 6, 0][frame % 4]} 92 32)"><g class="bang"><circle cx="92" cy="22" r="10" fill="${p.orange}"/>
+      <rect x="90.6" y="15" width="2.8" height="8" rx="1.4" fill="${p.ink}"/><circle cx="92" cy="27" r="1.6" fill="${p.ink}"/></g></g>`
   }
   if (mood === 'paused') {
     return `<text class="zz" x="84" y="30" font-family="system-ui,sans-serif" font-size="11" font-weight="600" fill="${p.purple}">z</text>
@@ -85,13 +87,18 @@ function effects(mood: Mood) {
     <circle cx="0" cy="1" r="2.6" fill="#6272a4"/></g></g>`
 }
 
-export function avatarSvg(mood: Mood, size = 96) {
+export const FRAMES = 4
+
+// frame drives a static pose (bob, blink, pulse) so a surface that draws SVG as a still image can animate by redrawing
+export function avatarSvg(mood: Mood, size = 96, frame = 0) {
   const p = PALETTE
+  const lift = [0, -1.5, -3, -1.5][frame % FRAMES] ?? 0
+  const blink = mood !== 'paused' && frame % FRAMES === 3 && Math.floor(frame / FRAMES) % 3 === 0
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 110 110">
 <style>${STYLE}</style>
 <rect width="110" height="110" rx="22" fill="${p.ink}"/>
-${effects(mood)}
-<g class="bob">
+${effects(mood, frame)}
+<g transform="translate(0 ${lift})"><g class="bob">
   <path class="cape" d="M22 76 Q55 64 88 76 L98 110 L12 110 Z" fill="${p.capeOut}"/>
   <path d="M27 52 Q22 70 34 80 L46 74 Z M83 52 Q88 70 76 80 L64 74 Z" fill="${p.collar}"/>
   <path d="M40 76 Q55 70 70 76 L74 110 L36 110 Z" fill="${p.ink}"/>
@@ -105,8 +112,8 @@ ${effects(mood)}
   <path d="M41 33.5 Q52 29.5 63 32" stroke="${p.hairShine}" stroke-width="2.2" fill="none" stroke-linecap="round" opacity=".85"/>
   <ellipse class="blush" cx="37" cy="63" rx="5" ry="3" fill="${p.blush}"/>
   <ellipse class="blush" cx="73" cy="63" rx="5" ry="3" fill="${p.blush}"/>
-  ${eyes(mood)}
+  ${eyes(mood, blink)}
   ${mouth(mood)}
-</g>
+</g></g>
 </svg>`
 }

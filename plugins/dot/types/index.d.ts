@@ -24,7 +24,7 @@ declare module 'claude-code' {
       profile: Profile
       goals: Goal[]
       isOpen: boolean
-      notice: string
+      notice: { tone: 'ok' | 'error' | 'info'; text: string } | null
     }
   }
 }
