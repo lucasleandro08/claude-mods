@@ -8,7 +8,7 @@ export const IDLE_ROUND: RoundStatus = { state: 'idle', goal: '', summary: '', a
 export const ROUND_CHOICES = [15, 30, 60, 120] as const
 export const BRIEFING_CHOICES = ['off', '08:00', '09:00', '10:00', '18:00'] as const
 
-export type DotPaths = { dir: string; profile: string; goals: string; round: string; memory: string; rules: string; work: string; briefing: string }
+export type DotPaths = { dir: string; profile: string; goals: string; round: string; memory: string; rules: string; work: string; briefing: string; sessions: string; globalMemory: string }
 
 export function dotPaths(home: string): DotPaths {
   const dir = `${home}/${DOT_DIR}`
@@ -21,6 +21,8 @@ export function dotPaths(home: string): DotPaths {
     rules: `${dir}/rules.md`,
     work: `${dir}/work.md`,
     briefing: `${dir}/briefing.md`,
+    sessions: `${dir}/sessions.md`,
+    globalMemory: `${home}/.claude/projects/${home.replace(/[/.]/g, '-')}/memory/MEMORY.md`,
   }
 }
 
@@ -208,7 +210,7 @@ export function workPrompt(name: string, paths: DotPaths, allowedTools: readonly
 
 1. Read ${paths.profile}. If "paused" is true, stop now without doing anything.
    Then write ${paths.round} as {"state": "running", "goal": "<title of the goal you pick>", "summary": ""} once you pick a goal (step 3).
-2. Read ${paths.goals} (a JSON array of goals), ${paths.rules} and ${paths.memory}.
+2. Read ${paths.goals} (a JSON array of goals), ${paths.rules}, ${paths.memory} and ${paths.sessions}. Also read the user's global Claude memory index ${paths.globalMemory} (one line per memory file next to it); open the memory files whose line is relevant to the goal, for context on projects, people and preferences. Never edit the global memory.
 3. Pick ONE goal: the oldest with status "queued" first (a new question or an answer from the user, so it never waits behind long jobs), else the oldest "working". If none, stop now: do not invent work.
 4. Set it to "working" and work on it for this round only. Follow the rules file: "Hand off" is never done. "Ask first" is done only once the user approved it: a "You: ..." note on that goal saying yes, "pode", "pode fazer", "faz" or similar counts as approval for what you proposed. Then do it, in parts across rounds when it is big, without asking again.
 5. Before finishing, update that goal in ${paths.goals} (keep every other goal untouched, keep valid JSON):
@@ -225,7 +227,7 @@ Nobody can approve anything during this round: any call that asks for approval h
 - for git history, Read <repository>/.git/logs/HEAD: each line is "old new author <email> timestamp timezone<TAB>action: message", the last line is the latest commit; the current branch is in <repository>/.git/HEAD;
 - connected apps (Slack, email, calendar…): their read tools (search, read, list, get) are pre-approved. Load tools with ToolSearch first when they are deferred;
 - the only other tools that run without approval are these (any tool not listed here or above hangs the round, so never call it): ${allowedTools.length > 0 ? allowedTools.join(', ') : 'none'}. When an approved action needs a tool that is not listed, say in the note exactly which tool name the user should add to permissions.allow in ~/.claude/settings.json;
-- your other Claude Code sessions: list_sessions, get_session, list_events and search_session_transcripts (mcp__ccd_session_mgmt__*) show what each one is doing; read them freely. send_message (or SendMessage) delivers a message into one as a user turn, so that session acts on it: only send when the goal itself asks you to, or the user approved that exact message in the thread, and say in the note which session you messaged and what;
+- your other Claude Code sessions: list_sessions, get_session, list_events and search_session_transcripts (mcp__ccd_session_mgmt__*) show what each one is doing; read them freely. Keep ${paths.sessions} as your map of them: one line per session you looked at or used, "- <title> (<session id>): <repo/branch>, <what it is for>, <last status, date>"; update a line when you learn more and drop sessions that no longer exist. To pick who should do a piece of work, match the goal against that map (title, repo, topic) before messaging anyone. When no session fits, you cannot create one: tell the user in the note to open a new Claude Code session in <folder> and give them the exact first message to paste. send_message (or SendMessage) delivers a message into one as a user turn, so that session acts on it: only send when the goal itself asks you to, or the user approved that exact message in the thread, and say in the note which session you messaged and what;
 - sending a message on the user's behalf (Slack, email): only when the goal itself asks you to send it, or the user approved it in the thread. Write it in the user's voice and language, short, and put the exact text you sent and where (channel or person, with the link) in your note;
 - when the app isn't connected (ToolSearch finds no tool for it), say so in the note and tell the user to connect it in the claude.ai connector settings;
 - if the goal really needs a shell command or a web request, do not try it: set the goal to "waiting" and ask the user to run it, with the exact command.
@@ -236,7 +238,7 @@ export function briefingPrompt(name: string, paths: DotPaths) {
   return `You are ${name}, the user's always-on assistant. This is the morning briefing.
 
 1. Read ${paths.profile}. If "paused" is true, stop now.
-2. Read ${paths.goals}, ${paths.rules} and ${paths.memory}.
+2. Read ${paths.goals}, ${paths.rules}, ${paths.memory}, ${paths.sessions} and the global memory index ${paths.globalMemory}.
 3. Look around read-only, following the rules file: goals in progress, what is waiting on the user, and anything in the connected tools that is worth their attention today (open pull requests and CI, failing builds, things the goals depend on). Do not change anything.
 4. Send one desktop notification (PushNotification, under 200 characters) with the most important thing, starting with "${name}: ".
 5. Append the full briefing (a few bullets) as a note to a goal titled "Briefings" in ${paths.goals}, creating it with status "done" if missing (any unique "id"). Do not touch timestamps; edit the file with the Edit or Write tool.
@@ -322,6 +324,23 @@ export function writeToolsAllowed(settingsText: string): string[] {
   } catch {
     return []
   }
+}
+
+type TaskRun = { session_id?: unknown; status?: unknown; archived?: unknown }
+
+function taskRuns(text: string): TaskRun[] {
+  try {
+    return (JSON.parse(text) as { runs?: TaskRun[] }).runs ?? []
+  } catch {
+    return []
+  }
+}
+
+// Session ids of finished runs still in the sidebar: what the dot archives once a round is over
+export function finishedRunIds(text: string): string[] {
+  return taskRuns(text)
+    .filter(run => run.status !== 'running' && run.archived !== true && typeof run.session_id === 'string')
+    .map(run => run.session_id as string)
 }
 
 // Session ids of a task's runs still going, from the list_task_runs answer text

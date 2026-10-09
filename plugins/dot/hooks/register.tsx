@@ -3,7 +3,7 @@ import type { EngineInterface, PluginOptions, Register } from 'claude-code'
 
 import type { Goal, Profile } from '../types'
 import {
-  addGoal, allowRules, answerGoal, markStuck, runningRunIds, writeToolsAllowed, BRIEFING_TASK, briefingCron, briefingPrompt, DEFAULT_PROFILE, DEFAULT_RULES, dotPaths, everyMinutesCron,
+  addGoal, allowRules, answerGoal, finishedRunIds, markStuck, runningRunIds, writeToolsAllowed, BRIEFING_TASK, briefingCron, briefingPrompt, DEFAULT_PROFILE, DEFAULT_RULES, dotPaths, everyMinutesCron,
   IDLE_ROUND, newlyAnswered, newlyWaiting, parseGoals, parseRound, stampChanged, stampRound, parseProfile, removeGoal, serialize, setStatus, taskPointer, WORK_TASK, workPrompt,
 } from '../src/dot'
 import { isOn, OFF_TEXT, parseState, statePath } from '../src/shared/toggle'
@@ -81,6 +81,7 @@ async function ensureFiles($: EngineInterface, settings?: Settings) {
   if (stored === undefined || !stored.includes('"seenAt"')) await $.fs.write(p.profile, serialize({ ...current, seenAt: current.seenAt || Date.now() }))
   if ((await readText($, p.goals)) === undefined) await $.fs.write(p.goals, serialize([]))
   if ((await readText($, p.memory)) === undefined) await $.fs.write(p.memory, '# Memory\n')
+  if ((await readText($, p.sessions)) === undefined) await $.fs.write(p.sessions, '# Claude Code sessions\n')
   if ((await readText($, p.rules)) === undefined) await $.fs.write(p.rules, DEFAULT_RULES)
   const home = (await $.env.get('HOME')) ?? ''
   const allowed = writeToolsAllowed((await readText($, `${home}/.claude/settings.json`)) ?? '')
@@ -107,6 +108,7 @@ async function sync($: EngineInterface) {
   if (stampedRound.changed) await $.fs.write(p.round, serialize(stampedRound.round))
   const wasRunning = (await read($, round)).state === 'running'
   await update($, round, prev => (JSON.stringify(prev) === JSON.stringify(stampedRound.round) ? prev : stampedRound.round))
+  if (wasRunning && stampedRound.round.state === 'idle') void archiveFinished($).catch(() => undefined)
   if (wasRunning && stampedRound.round.state === 'idle' && nextGoals.some(g => g.status === 'working' || g.status === 'queued')) {
     if ((await read($, chained)) < MAX_CHAINED) {
       await update($, chained, n => n + 1)
@@ -150,6 +152,14 @@ async function toolText($: EngineInterface, tool: string, input: Record<string, 
     return ran?.isError === true || ran?.deny !== undefined ? undefined : ran?.text
   } catch {
     return undefined
+  }
+}
+
+// Finished rounds leave a session each in the sidebar; archive them so only the live one shows
+async function archiveFinished($: EngineInterface) {
+  for (const taskId of [WORK_TASK, BRIEFING_TASK]) {
+    const ids = finishedRunIds((await toolText($, 'mcp__scheduled-tasks__list_task_runs', { taskId, limit: 50 })) ?? '')
+    for (const id of ids) await callTool($, 'mcp__ccd_session_mgmt__archive_session', { session_id: id, reason: 'finished dot round' })
   }
 }
 
