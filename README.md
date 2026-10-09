@@ -49,7 +49,7 @@ The marketplace is named `dracula-mods`. Open `/mods` (or click the `⚙ Mods` c
 | docker-pane | Refresh interval · docker path | 60 s (10 s while open) · PATH |
 | deploy-watch | Projects (`name=branch`, comma-separated) · AWS profile · region · poll interval · missing build warning · production pattern · aws path | none · CLI default · profile's · 60 s · 3 min · `prod` · PATH |
 | worktrees | Roots (folders holding your repos) · refresh interval · gh path | session repo only · 5 min · PATH |
-| dot | Work round interval · morning briefing (weekdays) | 30 min · `09:00` |
+| dot | Work round interval · morning briefing (weekdays) · open its pane on start | 30 min · `09:00` · on |
 
 With the mod-manager on, every mod's chip is drawn in **one bar** above the prompt: a tile per mod, its name dimmed over its value (like a usage band), wrapping between tiles with a blank row between lines; each mod publishes its chip as state and the bar sends presses back to it. Without the manager, or if it stops, each mod draws its own row again. Either way the band keeps whatever other mods draw beneath it.
 

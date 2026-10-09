@@ -10,7 +10,7 @@ const STATE = JSON.stringify({ enabled: { dot: true } })
 const PANE = { title: 'Vlad', isFocused: false, bodyColumns: 90, placement: 'dock' as const, scroll: { offset: 0, bodyRows: 40 }, view: {} }
 const BAND = { hasSurvey: false, isWorking: false, maxRows: 4, bodyColumns: 80, scroll: { offset: 0, bodyRows: 4 }, view: {} }
 
-function disk(on: On, files: Record<string, string>) {
+function disk(on: On, files: Record<string, string>, opened?: string[]) {
   on('env.get', ($, e) => ({ value: e.name === 'HOME' ? HOME : undefined }))
   on('fs.read', ($, e) => {
     if (e.path.endsWith('dracula-mods.json')) return { value: STATE }
@@ -21,7 +21,10 @@ function disk(on: On, files: Record<string, string>) {
     files[e.path] = e.text
     return { value: undefined }
   })
-  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('ui.open', ($, e) => {
+    opened?.push(e.id)
+    return { value: { isPlaced: true } }
+  })
   return files
 }
 
@@ -144,6 +147,28 @@ describe('dot', () => {
     expect(svg?.props.width).toBe(120)
     expect(String(svg?.props.source)).toContain('class="bang"')
     expect(await pane.find({ text: 'waiting on you' })).toBeDefined()
+  })
+})
+
+describe('dot pane on start', () => {
+  test('opens beside the chat when a session starts', async ($, on) => {
+    const opened: string[] = []
+    disk(on, {}, opened)
+    on('command.register', () => ({ value: undefined }) as never)
+    const clock = mock.clock(on)
+    await $.session.start({ source: 'startup', cwd: '/tmp' } as never).catch(() => undefined)
+    await clock.advance(1000)
+    expect(opened).toContain('dot')
+  })
+
+  test('stays closed when the option is off', { options: { openOnStart: false } }, async ($, on) => {
+    const opened: string[] = []
+    disk(on, {}, opened)
+    on('command.register', () => ({ value: undefined }) as never)
+    const clock = mock.clock(on)
+    await $.session.start({ source: 'startup', cwd: '/tmp' } as never).catch(() => undefined)
+    await clock.advance(6000)
+    expect(opened).toEqual([])
   })
 })
 

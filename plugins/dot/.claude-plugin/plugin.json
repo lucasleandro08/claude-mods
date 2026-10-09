@@ -1,7 +1,7 @@
 {
   "name": "dot",
   "displayName": "Dot",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "An always-on assistant with a name and a face: give it goals, and it keeps working on them in background rounds, asks before risky actions, briefs you in the morning and pings you when it needs a decision.",
   "author": {
     "name": "Lucas Leandro",
@@ -31,6 +31,12 @@
       "title": "Morning briefing (HH:MM, weekdays)",
       "description": "Local time of the weekday briefing. Leave empty for none.",
       "default": "09:00"
+    },
+    "openOnStart": {
+      "type": "boolean",
+      "title": "Open its pane when a session starts",
+      "description": "Keeps the dot beside the chat; close the pane to hide it for that session.",
+      "default": true
     }
   }
 }

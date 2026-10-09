@@ -48,12 +48,13 @@ const goals = atom({ plugin: 'dot', key: 'goals' } as const, [])
 const isOpen = atom({ plugin: 'dot', key: 'isOpen' } as const, false)
 const notice = atom({ plugin: 'dot', key: 'notice' } as const, '')
 
-type Settings = { workCron: string; briefingCron: string | undefined }
+type Settings = { workCron: string; briefingCron: string | undefined; openOnStart: boolean }
 
 function readSettings(options: PluginOptions): Settings {
   return {
     workCron: everyMinutesCron(Number(options.workEveryMinutes ?? 30) || 30),
     briefingCron: briefingCron(String(options.briefingTime ?? '09:00')),
+    openOnStart: options.openOnStart !== false,
   }
 }
 
@@ -182,6 +183,7 @@ export const register: Register = (on, options) => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'dot', description: 'Your always-on assistant: /dot, /dot <goal>, /dot pause|resume|run|on' })
     $.clock.every(CHECK_MS, () => void sync($).catch(() => undefined))
+    if (settings.openOnStart) $.clock.after(1000, () => void isActive($).then(enabled => (enabled ? openPane($) : undefined)).catch(() => undefined))
     return next(e)
   })
 
