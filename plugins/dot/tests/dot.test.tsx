@@ -2,7 +2,7 @@ import type { On } from 'claude-code'
 import { describe, expect, mock, test } from 'claude-code/testing'
 
 import { avatarSvg } from '../src/avatar'
-import { activityOf, addGoal, answerGoal, briefingCron, everyMinutesCron, moodOf, newlyWaiting, parseGoals, parseProfile, stampChanged, parseRound, stampRound, nextRoundAt, clock, splitLinks } from '../src/dot'
+import { activityOf, addGoal, answerGoal, briefingCron, everyMinutesCron, moodOf, newlyWaiting, parseGoals, parseProfile, stampChanged, parseRound, stampRound, nextRoundAt, clock, splitLinks, writeToolsAllowed, runningRunIds, markStuck } from '../src/dot'
 
 const HOME = '/home/dev'
 const DIR = `${HOME}/.claude-dot`
@@ -181,6 +181,63 @@ describe('dot', () => {
     await pane.input({ key: 'new-goal-1', text: 'any email?', kind: 'submit' })
     expect(goalsOf(files).at(-1)?.title).toBe('any email?')
     expect(runs).toEqual(['dot-work'])
+  })
+
+  test('a round that ends with work left starts the next one right away', async ($, on) => {
+    const files = disk(on, {
+      [`${DIR}/profile.json`]: JSON.stringify({ name: 'Vlad', scheduled: true, everyMinutes: 30 }),
+      [`${DIR}/goals.json`]: JSON.stringify([{ id: 'a', title: 'archive', status: 'working', notes: [], question: '', createdAt: 1, updatedAt: 1 }]),
+      [`${DIR}/round.json`]: JSON.stringify({ state: 'running', goal: 'archive', summary: '' }),
+    })
+    const runs: string[] = []
+    on('tool.call', { tool: 'mcp__scheduled-tasks__run_scheduled_task' }, () => {
+      runs.push('run')
+      return { result: {} as never }
+    })
+    on('command.register', () => ({ value: undefined }) as never)
+    const clock = mock.clock(on)
+    await $.session.start({ source: 'startup', cwd: '/tmp' } as never).catch(() => undefined)
+    await clock.advance(5000)
+    files[`${DIR}/round.json`] = JSON.stringify({ state: 'idle', goal: 'archive', summary: 'batch 1' })
+    await clock.advance(5000)
+    expect(runs).toEqual(['run'])
+  })
+
+  test('a round stuck past the limit is stopped, archived and its goal asks you', { options: { autoStopMinutes: 10 } }, async ($, on) => {
+    const files = disk(on, {
+      [`${DIR}/profile.json`]: JSON.stringify({ name: 'Vlad', scheduled: true, everyMinutes: 30 }),
+      [`${DIR}/goals.json`]: JSON.stringify([{ id: 'a', title: 'archive', status: 'working', notes: [], question: '', createdAt: 1, updatedAt: 1 }]),
+      [`${DIR}/round.json`]: JSON.stringify({ state: 'running', goal: 'archive', summary: '' }),
+    })
+    const calls: string[] = []
+    on('tool.call', ($, e) => {
+      const input = e as unknown as { tool: string; session_id?: string }
+      calls.push(`${input.tool.split('__').at(-1)} ${input.session_id ?? ''}`.trim())
+      if (input.tool.endsWith('list_task_runs')) return { result: {} as never, text: JSON.stringify({ runs: [{ session_id: 's1', status: 'running' }, { session_id: 's0', status: 'succeeded' }] }) } as never
+      return { result: {} as never }
+    })
+    on('command.register', () => ({ value: undefined }) as never)
+    const clock = mock.clock(on)
+    await $.session.start({ source: 'startup', cwd: '/tmp' } as never).catch(() => undefined)
+    await clock.advance(11 * 60_000)
+    expect(calls).toContain('stop_session s1')
+    expect(calls).toContain('archive_session s1')
+    expect(calls).not.toContain('stop_session s0')
+    expect(parseRound(files[`${DIR}/round.json`] ?? '').state).toBe('idle')
+    expect(goalsOf(files)[0]?.status).toBe('waiting')
+  })
+
+  test('runningRunIds and markStuck', () => {
+    expect(runningRunIds('{"runs":[{"session_id":"a","status":"running"},{"session_id":"b","status":"failed"}]}')).toEqual(['a'])
+    expect(runningRunIds('nope')).toEqual([])
+    const goals = [{ id: 'a', title: 't', status: 'working' as const, notes: [], question: '', createdAt: 1, updatedAt: 1 }]
+    expect(markStuck(goals, 't', 10, 5)[0]?.status).toBe('waiting')
+  })
+
+  test('writeToolsAllowed lists the allowed MCP write tools, not reads', () => {
+    const settings = JSON.stringify({ permissions: { allow: ['Read(~/.claude-dot/**)', 'mcp__g__search_threads', 'mcp__g__label_thread', 'mcp__g__create_label', 'mcp__Claude_Browser__navigate'] } })
+    expect(writeToolsAllowed(settings)).toEqual(['mcp__g__label_thread', 'mcp__g__create_label'])
+    expect(writeToolsAllowed('not json')).toEqual([])
   })
 
   test('splitLinks names known hosts and keeps the text clean', () => {

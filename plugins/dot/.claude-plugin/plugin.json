@@ -1,7 +1,7 @@
 {
   "name": "dot",
   "displayName": "Dot",
-  "version": "1.9.1",
+  "version": "1.10.0",
   "description": "An always-on assistant with a name and a face: give it goals, and it keeps working on them in background rounds, asks before risky actions, briefs you in the morning and pings you when it needs a decision.",
   "author": {
     "name": "Lucas Leandro",
@@ -37,6 +37,12 @@
       "title": "Open its pane when a session starts",
       "description": "Keeps the dot beside the chat; close the pane to hide it for that session.",
       "default": true
+    },
+    "autoStopMinutes": {
+      "type": "number",
+      "title": "Close a stuck round after (minutes)",
+      "description": "A round still running after this long is waiting for an approval nobody can give: its session is stopped and archived, and the goal asks you how to go on.",
+      "default": 10
     }
   }
 }

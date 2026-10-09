@@ -54,7 +54,7 @@ function statusLine(profile: Profile, round: RoundStatus, now: number): { text: 
   if (round.state === 'running') {
     const since = round.at > 0 ? ` · since ${clock(round.at)}` : ''
     if (round.at > 0 && now - round.at > STUCK_MS) {
-      return { text: `● Stuck${since}. It may be waiting for an approval in "${profile.name} · work".`, color: DRACULA.orange }
+      return { text: `● Stuck${since}, waiting for an approval. It closes on its own shortly.`, color: DRACULA.orange }
     }
     return { text: `● Working${round.goal ? ` on “${round.goal}”` : ''}${since}`, color: DRACULA.green }
   }

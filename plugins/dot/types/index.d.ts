@@ -28,6 +28,7 @@ declare module 'claude-code' {
       isOpen: boolean
       notice: { tone: 'ok' | 'error' | 'info'; text: string } | null
       showSettings: boolean
+      chained: number
     }
   }
 }

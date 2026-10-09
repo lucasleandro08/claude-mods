@@ -201,14 +201,14 @@ Each action falls in one level. When unsure, use the stricter one.
 - Deleting data permanently.
 `
 
-export function workPrompt(name: string, paths: DotPaths) {
+export function workPrompt(name: string, paths: DotPaths, allowedTools: readonly string[] = []) {
   return `You are ${name}, the user's always-on assistant. This is one background work round; nobody is watching it live.
 
 1. Read ${paths.profile}. If "paused" is true, stop now without doing anything.
    Then write ${paths.round} as {"state": "running", "goal": "<title of the goal you pick>", "summary": ""} once you pick a goal (step 3).
 2. Read ${paths.goals} (a JSON array of goals), ${paths.rules} and ${paths.memory}.
 3. Pick ONE goal: the oldest with status "working", else the oldest "queued". If none, stop now: do not invent work.
-4. Set it to "working" and work on it for this round only. Follow the rules file strictly: anything under "Ask first" or "Hand off" must not be done.
+4. Set it to "working" and work on it for this round only. Follow the rules file: "Hand off" is never done. "Ask first" is done only once the user approved it: a "You: ..." note on that goal saying yes, "pode", "pode fazer", "faz" or similar counts as approval for what you proposed. Then do it, in parts across rounds when it is big, without asking again.
 5. Before finishing, update that goal in ${paths.goals} (keep every other goal untouched, keep valid JSON):
    - ALWAYS append one note to "notes" written to the user, as a chat reply: the answer itself when the goal is a question, otherwise what you did or found and what is next. Never finish a round without this note;
    - status "done" when the goal is complete;
@@ -221,7 +221,8 @@ export function workPrompt(name: string, paths: DotPaths) {
 Nobody can approve anything during this round: any call that asks for approval hangs it forever. So:
 - never use the shell (Bash) at all. Use only Read, Grep and Glob, which work anywhere under the home folder without approval;
 - for git history, Read <repository>/.git/logs/HEAD: each line is "old new author <email> timestamp timezone<TAB>action: message", the last line is the latest commit; the current branch is in <repository>/.git/HEAD;
-- connected apps (Slack, email, calendar…): use their read tools freely (search, read, list, get): those are pre-approved. Load them with ToolSearch first when they are deferred. Never call a tool that sends, posts, drafts, schedules, reacts, creates, updates or deletes: that is "Ask first";
+- connected apps (Slack, email, calendar…): their read tools (search, read, list, get) are pre-approved. Load tools with ToolSearch first when they are deferred;
+- the only other tools that run without approval are these (any tool not listed here or above hangs the round, so never call it): ${allowedTools.length > 0 ? allowedTools.join(', ') : 'none'}. When an approved action needs a tool that is not listed, say in the note exactly which tool name the user should add to permissions.allow in ~/.claude/settings.json;
 - when the app isn't connected (ToolSearch finds no tool for it), say so in the note and tell the user to connect it in the claude.ai connector settings;
 - if the goal really needs a shell command or a web request, do not try it: set the goal to "waiting" and ask the user to run it, with the exact command.
 Never print or store secrets. Write notes in the user's language (see the memory file), else the goal's language. Keep notes short and scannable: lead with the answer, then a few short lines or a numbered list.`
@@ -286,4 +287,33 @@ export function splitLinks(text: string): { body: string; links: NoteLink[] } {
     .replace(/[ \t]{2,}/g, ' ')
     .trim()
   return { body, links }
+}
+
+const READ_TOOL = /__(?:[a-z]+_)?(search|read|list|get)[a-z_]*$/
+
+// Write tools the user allowed in settings, so a round knows what it may call without hanging
+export function writeToolsAllowed(settingsText: string): string[] {
+  try {
+    const allow = (JSON.parse(settingsText) as { permissions?: { allow?: unknown } }).permissions?.allow
+    return Array.isArray(allow) ? allow.filter((rule): rule is string => typeof rule === 'string' && rule.startsWith('mcp__') && !READ_TOOL.test(rule) && !rule.includes('Claude_Browser') && !rule.includes('claude-in-chrome')) : []
+  } catch {
+    return []
+  }
+}
+
+// Session ids of a task's runs still going, from the list_task_runs answer text
+export function runningRunIds(text: string): string[] {
+  try {
+    const runs = (JSON.parse(text) as { runs?: { session_id?: unknown; status?: unknown }[] }).runs ?? []
+    return runs.filter(run => run.status === 'running' && typeof run.session_id === 'string').map(run => run.session_id as string)
+  } catch {
+    return []
+  }
+}
+
+// The goal a stuck round was on becomes a question, so the next rounds don't walk into the same wall
+export function markStuck(goals: Goal[], title: string, minutes: number, now: number): Goal[] {
+  return goals.map(goal => goal.title === title && goal.status !== 'done'
+    ? { ...goal, status: 'waiting', question: `A round on this stopped after ${minutes} min waiting for an approval nobody could give. Should I try another way, or will you do that step?`, updatedAt: now }
+    : goal)
 }

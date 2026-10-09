@@ -3,7 +3,7 @@ import type { EngineInterface, PluginOptions, Register } from 'claude-code'
 
 import type { Goal, Profile } from '../types'
 import {
-  addGoal, allowRules, answerGoal, BRIEFING_TASK, briefingCron, briefingPrompt, DEFAULT_PROFILE, DEFAULT_RULES, dotPaths, everyMinutesCron,
+  addGoal, allowRules, answerGoal, markStuck, runningRunIds, writeToolsAllowed, BRIEFING_TASK, briefingCron, briefingPrompt, DEFAULT_PROFILE, DEFAULT_RULES, dotPaths, everyMinutesCron,
   IDLE_ROUND, newlyWaiting, parseGoals, parseRound, stampChanged, stampRound, parseProfile, removeGoal, serialize, setStatus, taskPointer, WORK_TASK, workPrompt,
 } from '../src/dot'
 import { isOn, OFF_TEXT, parseState, statePath } from '../src/shared/toggle'
@@ -49,13 +49,17 @@ const round = atom({ plugin: 'dot', key: 'round' } as const, IDLE_ROUND)
 const isOpen = atom({ plugin: 'dot', key: 'isOpen' } as const, false)
 const notice = atom({ plugin: 'dot', key: 'notice' } as const, null)
 const showSettings = atom({ plugin: 'dot', key: 'showSettings' } as const, false)
-type Settings = { everyMinutes: number; briefing: string; openOnStart: boolean }
+// Rounds chained back to back while work is left; capped so a goal that never finishes can't loop forever
+const chained = atom({ plugin: 'dot', key: 'chained' } as const, 0)
+const MAX_CHAINED = 8
+type Settings = { everyMinutes: number; briefing: string; openOnStart: boolean; autoStopMinutes: number }
 
 function readSettings(options: PluginOptions): Settings {
   return {
     everyMinutes: Math.max(5, Number(options.workEveryMinutes ?? 30) || 30),
     briefing: String(options.briefingTime ?? '09:00'),
     openOnStart: options.openOnStart !== false,
+    autoStopMinutes: Math.max(3, Number(options.autoStopMinutes ?? 10) || 10),
   }
 }
 
@@ -77,7 +81,9 @@ async function ensureFiles($: EngineInterface, settings?: Settings) {
   if ((await readText($, p.goals)) === undefined) await $.fs.write(p.goals, serialize([]))
   if ((await readText($, p.memory)) === undefined) await $.fs.write(p.memory, '# Memory\n')
   if ((await readText($, p.rules)) === undefined) await $.fs.write(p.rules, DEFAULT_RULES)
-  await $.fs.write(p.work, `${workPrompt(current.name, p)}\n`)
+  const home = (await $.env.get('HOME')) ?? ''
+  const allowed = writeToolsAllowed((await readText($, `${home}/.claude/settings.json`)) ?? '')
+  await $.fs.write(p.work, `${workPrompt(current.name, p, allowed)}\n`)
   await $.fs.write(p.briefing, `${briefingPrompt(current.name, p)}\n`)
   return p
 }
@@ -96,9 +102,16 @@ async function sync($: EngineInterface) {
   if (stamped.changed) await $.fs.write(p.goals, serialize(nextGoals))
   await update($, profile, prev => (JSON.stringify(prev) === JSON.stringify(nextProfile) ? prev : nextProfile))
   await update($, goals, prev => (JSON.stringify(prev) === JSON.stringify(nextGoals) ? prev : nextGoals))
-  const stampedRound = stampRound(await read($, round), parseRound((await readText($, p.round)) ?? ''), Date.now())
+  const stampedRound = stampRound(await read($, round), parseRound((await readText($, p.round)) ?? ''), await nowMs($))
   if (stampedRound.changed) await $.fs.write(p.round, serialize(stampedRound.round))
+  const wasRunning = (await read($, round)).state === 'running'
   await update($, round, prev => (JSON.stringify(prev) === JSON.stringify(stampedRound.round) ? prev : stampedRound.round))
+  if (wasRunning && stampedRound.round.state === 'idle' && nextGoals.some(g => g.status === 'working' || g.status === 'queued')) {
+    if ((await read($, chained)) < MAX_CHAINED) {
+      await update($, chained, n => n + 1)
+      await startSoon($)
+    }
+  }
   await publishChip($)
   for (const goal of newlyWaiting(before, nextGoals)) if (before.length > 0) $.ui.toast(`${nextProfile.emoji} ${nextProfile.name}: ${goal.question || goal.title}`, { timeoutMs: 10_000 })
 }
@@ -123,6 +136,36 @@ async function say($: EngineInterface, tone: 'ok' | 'error' | 'info', text: stri
 }
 
 // The scheduled-tasks tools belong to the desktop app; a refused or failed call resolves with isError instead of throwing
+async function nowMs($: EngineInterface) {
+  return $.clock.now().catch(() => Date.now())
+}
+
+async function toolText($: EngineInterface, tool: string, input: Record<string, unknown>) {
+  try {
+    const ran = (await $.tool.call({ tool, ...input } as never)) as { isError?: boolean; deny?: string; text?: string } | undefined
+    return ran?.isError === true || ran?.deny !== undefined ? undefined : ran?.text
+  } catch {
+    return undefined
+  }
+}
+
+// A round past the limit is waiting on an approval nobody will give: stop it, archive its session, free the round
+async function stopStuck($: EngineInterface, minutes: number) {
+  const current = await read($, round)
+  const now = await nowMs($)
+  if (current.state !== 'running' || current.at <= 0 || now - current.at < minutes * 60_000) return
+  const p = await paths($)
+  const idle = { state: 'idle' as const, goal: current.goal, summary: `Stopped after ${minutes} min: it was waiting for an approval.`, at: now }
+  await $.fs.write(p.round, serialize(idle))
+  await update($, round, () => idle)
+  await changeGoals($, (list, now) => markStuck(list, current.goal, minutes, now))
+  const ids = runningRunIds((await toolText($, 'mcp__scheduled-tasks__list_task_runs', { taskId: WORK_TASK, limit: 5 })) ?? '')
+  for (const id of ids) {
+    await callTool($, 'mcp__ccd_session_mgmt__stop_session', { session_id: id })
+    await callTool($, 'mcp__ccd_session_mgmt__archive_session', { session_id: id, reason: 'dot round waited too long for an approval' })
+  }
+}
+
 async function callTool($: EngineInterface, tool: string, input: Record<string, unknown>) {
   try {
     const ran = (await $.tool.call({ tool, ...input } as never)) as { isError?: boolean; deny?: string } | undefined
@@ -197,7 +240,8 @@ async function runNow($: EngineInterface) {
 }
 
 // A new message or reply starts a round at once instead of waiting for the schedule; a round already running picks it up
-async function startSoon($: EngineInterface) {
+async function startSoon($: EngineInterface, fromUser = false) {
+  if (fromUser) await update($, chained, () => 0)
   const me = await read($, profile)
   if (!me.scheduled || me.paused || (await read($, round)).state === 'running') return
   await callTool($, 'mcp__scheduled-tasks__run_scheduled_task', { taskId: WORK_TASK })
@@ -226,6 +270,7 @@ export const register: Register = (on, options) => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'dot', description: 'Your always-on assistant: /dot, /dot <goal>, /dot pause|resume|run|on' })
     $.clock.every(CHECK_MS, () => void sync($).catch(() => undefined))
+    $.clock.every(60_000, () => void stopStuck($, settings.autoStopMinutes).catch(() => undefined))
     if (settings.openOnStart) $.clock.after(1000, () => void isActive($).then(enabled => (enabled ? openPane($) : undefined)).catch(() => undefined))
     return next(e)
   })
@@ -260,7 +305,7 @@ export const register: Register = (on, options) => {
       return { text: `Renamed to ${emoji ?? me.emoji} ${name}.` }
     }
     await changeGoals($, (list, now) => addGoal(list, args, now))
-    await startSoon($)
+    await startSoon($, true)
     return { text: `${me.emoji} ${me.name} is on it: ${args}` }
   })
 
@@ -300,18 +345,18 @@ export const register: Register = (on, options) => {
           profile={await read($, profile)}
           goals={await read($, goals)}
           round={await read($, round)}
-          now={Date.now()}
+          now={await nowMs($)}
           notice={await read($, notice)}
           dotDir={(await paths($)).dir}
           showSettings={await read($, showSettings)}
           onToggleSettings={() => update($, showSettings, open => !open)}
           onAdd={async title => {
             await changeGoals($, (list, now) => addGoal(list, title, now))
-            await startSoon($)
+            await startSoon($, true)
           }}
           onAnswer={async (id, answer) => {
             await changeGoals($, (list, now) => answerGoal(list, id, answer, now))
-            await startSoon($)
+            await startSoon($, true)
           }}
           onDone={id => changeGoals($, (list, now) => setStatus(list, id, 'done', now))}
           onRemove={id => changeGoals($, list => removeGoal(list, id))}
