@@ -1,7 +1,8 @@
 import type { On } from 'claude-code'
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { addGoal, answerGoal, briefingCron, everyMinutesCron, newlyWaiting, parseGoals, parseProfile } from '../src/dot'
+import { avatarSvg } from '../src/avatar'
+import { activityOf, addGoal, answerGoal, briefingCron, everyMinutesCron, moodOf, newlyWaiting, parseGoals, parseProfile } from '../src/dot'
 
 const HOME = '/home/dev'
 const DIR = `${HOME}/.claude/dot`
@@ -48,11 +49,13 @@ describe('dot', () => {
       })
       await $.command.run({ command: 'dot', args: '' } as never)
       const pane = await $.ui.mount({ plugin: 'dot', surface, component: 'Pane', requestId: 'dot', props: PANE })
-      expect(await pane.find({ text: /Waiting on you · 1/ })).toBeDefined()
+      expect(await pane.find({ text: 'Vlad' })).toBeDefined()
       expect(await pane.find({ text: 'Can I push to staging?' })).toBeDefined()
-      expect(await pane.find({ text: /In progress · 1/ })).toBeDefined()
+      expect(await pane.find({ text: 'Recent activity' })).toBeDefined()
       expect(await pane.find({ text: 'halfway' })).toBeDefined()
-      expect(await pane.find({ text: /Done · 1/ })).toBeDefined()
+      expect(await pane.find({ text: 'read the RFC' })).toBeDefined()
+      if (surface === 'desktop') expect((await pane.find({ type: 'Svg' }))?.props.isInteractive).toBe(true)
+      expect(JSON.stringify(await pane.drawn()).length < 100_000).toBe(true)
 
       if (surface === 'desktop') {
         await pane.input({ key: 'answer-a', text: 'yes, staging only', kind: 'submit' })
@@ -117,7 +120,7 @@ describe('dot', () => {
     expect(files[`${DIR}/work.md`]).toContain('You are Renfield')
   })
 
-  test('the chip shows what waits on you and keeps the band beneath', async ($, on) => {
+  test('the hero sits under the band with the mood and what waits on you', async ($, on) => {
     disk(on, { [`${DIR}/goals.json`]: JSON.stringify([{ id: 'a', title: 'x', status: 'waiting', notes: [], question: 'ok?', createdAt: 1, updatedAt: 1 }]) })
     on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
       const { Text } = $.ui.resolve(e)
@@ -128,8 +131,32 @@ describe('dot', () => {
     await $.session.start({ source: 'startup', cwd: '/tmp' } as never).catch(() => undefined)
     await clock.advance(5000)
     const band = await $.ui.mount({ plugin: 'dot', surface: 'desktop', component: 'AbovePrompt', props: BAND })
-    expect((await band.find({ type: 'Button', key: 'open-dot' }))?.props.label).toBe('Vlad · 1 waiting on you')
+    expect((await band.find({ type: 'Button', key: 'open-dot' }))?.props.label).toBe('Vlad')
+    expect(await band.find({ text: 'waiting on you' })).toBeDefined()
+    expect(await band.find({ text: 'ok?' })).toBeDefined()
+    expect(String((await band.find({ type: 'Svg' }))?.props.source)).toContain('class="bang"')
     expect(await band.find({ text: 'beneath' })).toBeDefined()
+  })
+})
+
+describe('dot avatar', () => {
+  test('each mood draws its own face and effects', () => {
+    expect(avatarSvg('working')).toContain('class="ring"')
+    expect(avatarSvg('waiting')).toContain('class="bang"')
+    expect(avatarSvg('paused')).toContain('class="zz"')
+    expect(avatarSvg('idle')).toContain('class="bat"')
+    expect(avatarSvg('idle').length < 131_072).toBe(true)
+  })
+
+  test('mood and activity follow the goals', () => {
+    const profile = { name: 'Vlad', emoji: '🧛', paused: false, scheduled: true }
+    const g = (status: 'queued' | 'working' | 'waiting' | 'done', notes: string[] = []) => ({ id: status, title: `t-${status}`, status, notes, question: '', createdAt: 1, updatedAt: 1 })
+    expect(moodOf(profile, [])).toBe('idle')
+    expect(moodOf(profile, [g('working')])).toBe('working')
+    expect(moodOf(profile, [g('working'), g('waiting')])).toBe('waiting')
+    expect(moodOf({ ...profile, paused: true }, [g('working')])).toBe('paused')
+    expect(activityOf(profile, [g('working', ['read 2 files'])])).toEqual({ status: 'working', detail: 't-working · read 2 files' })
+    expect(activityOf(profile, [g('queued')])).toEqual({ status: 'up next', detail: 't-queued' })
   })
 })
 

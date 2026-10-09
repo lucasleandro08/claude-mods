@@ -169,3 +169,22 @@ Write in the language of the user's goals.`
 export function taskPointer(path: string) {
   return `Read ${path} and follow it exactly.`
 }
+
+export function moodOf(profile: Profile, goals: Goal[]): 'working' | 'waiting' | 'idle' | 'paused' {
+  if (profile.paused) return 'paused'
+  if (goals.some(g => g.status === 'waiting')) return 'waiting'
+  if (goals.some(g => g.status === 'working')) return 'working'
+  return 'idle'
+}
+
+export function activityOf(profile: Profile, goals: Goal[]) {
+  const { waiting, active } = byStatus(goals)
+  if (profile.paused) return { status: 'paused', detail: 'No rounds until you resume' }
+  const asking = waiting[0]
+  if (asking) return { status: 'waiting on you', detail: asking.question || asking.title }
+  const current = active.find(g => g.status === 'working')
+  if (current) return { status: 'working', detail: current.notes[current.notes.length - 1] ? `${current.title} · ${current.notes[current.notes.length - 1]}` : current.title }
+  const next = active[active.length - 1]
+  if (next) return { status: profile.scheduled ? 'up next' : 'queued', detail: next.title }
+  return { status: 'idle', detail: 'No goals yet' }
+}
