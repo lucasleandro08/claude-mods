@@ -13,7 +13,8 @@ export type Goal = {
   createdAt: number
   updatedAt: number
 }
-export type Profile = { name: string; emoji: string; paused: boolean; scheduled: boolean }
+export type Profile = { name: string; emoji: string; paused: boolean; scheduled: boolean; everyMinutes: number; briefing: string }
+export type RoundStatus = { state: 'idle' | 'running'; goal: string; summary: string; at: number }
 
 declare module 'claude-code' {
   interface PluginState {
@@ -23,6 +24,7 @@ declare module 'claude-code' {
       chip: Chip | null
       profile: Profile
       goals: Goal[]
+      round: RoundStatus
       isOpen: boolean
       notice: { tone: 'ok' | 'error' | 'info'; text: string } | null
     }

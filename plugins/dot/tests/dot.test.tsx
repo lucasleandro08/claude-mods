@@ -2,10 +2,10 @@ import type { On } from 'claude-code'
 import { describe, expect, mock, test } from 'claude-code/testing'
 
 import { avatarSvg } from '../src/avatar'
-import { activityOf, addGoal, answerGoal, briefingCron, everyMinutesCron, moodOf, newlyWaiting, parseGoals, parseProfile, stampChanged } from '../src/dot'
+import { activityOf, addGoal, answerGoal, briefingCron, everyMinutesCron, moodOf, newlyWaiting, parseGoals, parseProfile, stampChanged, parseRound, stampRound, nextRoundAt, clock } from '../src/dot'
 
 const HOME = '/home/dev'
-const DIR = `${HOME}/.claude/dot`
+const DIR = `${HOME}/.claude-dot`
 const STATE = JSON.stringify({ enabled: { dot: true } })
 const PANE = { title: 'Vlad', isFocused: false, bodyColumns: 90, placement: 'dock' as const, scroll: { offset: 0, bodyRows: 40 }, view: {} }
 const BAND = { hasSurvey: false, isWorking: false, maxRows: 4, bodyColumns: 80, scroll: { offset: 0, bodyRows: 4 }, view: {} }
@@ -54,10 +54,10 @@ describe('dot', () => {
       const pane = await $.ui.mount({ plugin: 'dot', surface, component: 'Pane', requestId: 'dot', props: PANE })
       expect(await pane.find({ text: 'Vlad' })).toBeDefined()
       expect(await pane.find({ text: 'Can I push to staging?' })).toBeDefined()
-      expect(await pane.find({ text: 'Activity' })).toBeDefined()
-      expect(await pane.find({ text: 'Needs you' })).toBeDefined()
+      expect(await pane.find({ text: 'Needs your answer to continue.' })).toBeDefined()
       expect(await pane.find({ text: 'halfway' })).toBeDefined()
       expect(await pane.find({ text: 'read the RFC' })).toBeDefined()
+      expect(await pane.find({ text: 'In progress. More in the next round.' })).toBeDefined()
       if (surface === 'desktop') expect((await pane.find({ type: 'Svg' }))?.props.source).toContain('<svg')
       expect(JSON.stringify(await pane.drawn()).length < 100_000).toBe(true)
 
@@ -147,7 +147,36 @@ describe('dot', () => {
     const svg = await pane.find({ type: 'Svg' })
     expect(svg?.props.width).toBe(88)
     expect(String(svg?.props.source)).toContain('class="bang"')
-    expect(await pane.find({ text: 'waiting on you' })).toBeDefined()
+    expect(await pane.find({ text: /Background work is off/ })).toBeDefined()
+  })
+
+  test('shows when the round runs and when the next one comes', async ($, on) => {
+    disk(on, {
+      [`${DIR}/profile.json`]: JSON.stringify({ name: 'Vlad', scheduled: true, everyMinutes: 30 }),
+      [`${DIR}/round.json`]: JSON.stringify({ state: 'running', goal: 'read the RFC', summary: '' }),
+    })
+    on('command.register', () => ({ value: undefined }) as never)
+    const clock = mock.clock(on)
+    await $.session.start({ source: 'startup', cwd: '/tmp' } as never).catch(() => undefined)
+    await clock.advance(5000)
+    const pane = await $.ui.mount({ plugin: 'dot', surface: 'desktop', component: 'Pane', requestId: 'dot', props: PANE })
+    expect(await pane.find({ text: /Working now since \d\d:\d\d on "read the RFC"/ })).toBeDefined()
+    expect(await pane.find({ type: 'Button', key: 'run-now' })).toBeUndefined()
+  })
+
+  test('changing the round interval reschedules the work task', async ($, on) => {
+    const files = disk(on, { [`${DIR}/profile.json`]: JSON.stringify({ name: 'Vlad', scheduled: true, everyMinutes: 30 }) })
+    const calls: string[] = []
+    on('tool.call', { tool: 'mcp__scheduled-tasks__update_scheduled_task' }, ($, e) => {
+      const input = e as unknown as { taskId: string; cronExpression?: string }
+      calls.push(`${input.taskId} ${input.cronExpression}`)
+      return { result: {} as never }
+    })
+    await $.command.run({ command: 'dot', args: '' } as never)
+    const pane = await $.ui.mount({ plugin: 'dot', surface: 'desktop', component: 'Pane', requestId: 'dot', props: PANE })
+    await pane.select({ key: 'every', value: '60' })
+    expect(calls).toContain('dot-work 0 */1 * * *')
+    expect(parseProfile(files[`${DIR}/profile.json`] ?? '').everyMinutes).toBe(60)
   })
 })
 
@@ -183,7 +212,7 @@ describe('dot avatar', () => {
   })
 
   test('mood and activity follow the goals', () => {
-    const profile = { name: 'Vlad', emoji: '🧛', paused: false, scheduled: true }
+    const profile = { name: 'Vlad', emoji: '🧛', paused: false, scheduled: true, everyMinutes: 30, briefing: '09:00' }
     const g = (status: 'queued' | 'working' | 'waiting' | 'done', notes: string[] = []) => ({ id: status, title: `t-${status}`, status, notes, question: '', createdAt: 1, updatedAt: 1 })
     expect(moodOf(profile, [])).toBe('idle')
     expect(moodOf(profile, [g('working')])).toBe('working')
@@ -214,6 +243,17 @@ describe('dot state', () => {
     const created = [...before, { id: 'new', title: 'b', status: 'done' as const, notes: [], question: '', createdAt: 0, updatedAt: 0 }]
     expect(stampChanged(before, created, 7000).goals.find(g => g.id === 'new')?.createdAt).toBe(7000)
     expect(id).not.toBe('')
+  })
+
+  test('round stamps and the next round time', () => {
+    const idle = parseRound('')
+    const running = stampRound(idle, { state: 'running', goal: 'g', summary: '', at: 0 }, 9000)
+    expect(running.round.at).toBe(9000)
+    expect(stampRound(running.round, running.round, 12_000).changed).toBe(false)
+    const at = new Date(2026, 9, 9, 13, 41).getTime()
+    expect(clock(nextRoundAt(30, at))).toBe('14:00')
+    expect(clock(nextRoundAt(15, at))).toBe('13:45')
+    expect(clock(nextRoundAt(120, at))).toBe('14:00')
   })
 
   test('bad files fall back to safe defaults', () => {

@@ -1,24 +1,24 @@
 import type { Elements, RenderSurface } from 'claude-code'
 
-import type { Goal, Profile } from '../types'
+import type { Goal, Profile, RoundStatus } from '../types'
 import { avatarSvg } from '../src/avatar'
-import { activityOf, byStatus, moodOf } from '../src/dot'
+import { BRIEFING_CHOICES, clock, moodOf, nextRoundAt, ROUND_CHOICES } from '../src/dot'
 import { DRACULA } from '../src/shared/theme'
 
 type Ui = Elements[RenderSurface]
 
 const AVATAR_PX = 88
-const RECENT_SHOWN = 6
-const RESULTS_SHOWN = 4
-const STATUS_WIDTH = 9
+const THREADS_SHOWN = 8
+const STUCK_MS = 10 * 60_000
 
 export type Notice = { tone: 'ok' | 'error' | 'info'; text: string }
 
 export type DotPaneProps = {
   ui: Ui
-  width: number
   profile: Profile
   goals: Goal[]
+  round: RoundStatus
+  now: number
   notice: Notice | null
   dotDir: string
   onAdd: (title: string) => unknown
@@ -28,157 +28,152 @@ export type DotPaneProps = {
   onPause: () => unknown
   onRunNow: () => unknown
   onSchedule: () => unknown
-}
-
-const STATUS_COLOR: Record<string, string> = {
-  working: DRACULA.green,
-  'waiting on you': DRACULA.orange,
-  paused: DRACULA.comment,
-  'up next': DRACULA.purple,
-  queued: DRACULA.purple,
-  idle: DRACULA.comment,
-}
-
-const ROW_STATUS: Record<Goal['status'], { label: string; color: string }> = {
-  working: { label: 'working', color: DRACULA.green },
-  queued: { label: 'next', color: DRACULA.purple },
-  waiting: { label: 'needs you', color: DRACULA.orange },
-  done: { label: 'done', color: DRACULA.comment },
+  onEvery: (minutes: number) => unknown
+  onBriefing: (time: string) => unknown
 }
 
 const NOTICE_COLOR = { ok: DRACULA.green, error: DRACULA.orange, info: DRACULA.cyan } as const
 
+function roundLine(profile: Profile, round: RoundStatus, now: number): { text: string; color: string } {
+  if (!profile.scheduled) return { text: 'Background work is off. Turn it on so it works without you.', color: DRACULA.orange }
+  if (profile.paused) return { text: 'Paused. No rounds run until you resume.', color: DRACULA.comment }
+  if (round.state === 'running') {
+    const since = round.at > 0 ? ` since ${clock(round.at)}` : ''
+    const stuck = round.at > 0 && now - round.at > STUCK_MS
+    return stuck
+      ? { text: `Running${since} and quiet for a while: it may be waiting for your approval in the "${profile.name} · work" session.`, color: DRACULA.orange }
+      : { text: `Working now${since}${round.goal ? ` on "${round.goal}"` : ''}.`, color: DRACULA.green }
+  }
+  const last = round.at > 0 ? `Last round ${clock(round.at)}. ` : ''
+  return { text: `${last}Next round around ${clock(nextRoundAt(profile.everyMinutes, now))}.`, color: DRACULA.comment }
+}
+
 export function DotPane(props: DotPaneProps) {
-  const { ui, profile, goals, notice } = props
-  const { Box, Text } = ui
-  const { waiting, active, done } = byStatus(goals)
-  const recent = active.slice(0, RECENT_SHOWN)
-  const results = done.filter(g => g.notes.length > 0).slice(0, RESULTS_SHOWN)
+  const { ui, profile, goals, round, now, notice } = props
+  const { Box, Text, Button } = ui
+  const line = roundLine(profile, round, now)
+  const threads = [...goals].sort((a, b) => a.createdAt - b.createdAt).slice(-THREADS_SHOWN)
 
   return (
     <Box flexDirection="column" backgroundColor={DRACULA.background} paddingX={2} paddingY={1} rowGap={1}>
-      <Header {...props} />
-      {notice && <Text color={NOTICE_COLOR[notice.tone]} wrap="wrap">{notice.text}</Text>}
-
-      <Composer ui={ui} name={profile.name} count={goals.length} onAdd={props.onAdd} />
-
-      {waiting.length > 0 && (
-        <Section ui={ui} title="Needs you" count={waiting.length} color={DRACULA.orange}>
-          {waiting.map(goal => <Question ui={ui} goal={goal} onAnswer={props.onAnswer} />)}
-        </Section>
-      )}
-
-      <Section ui={ui} title="Activity" count={active.length} color={DRACULA.purple}>
-        {recent.length === 0
-          ? <Text color={DRACULA.comment} wrap="wrap">Nothing in progress. Send {profile.name} a goal above and it picks it up on the next round.</Text>
-          : recent.map(goal => <GoalRow ui={ui} goal={goal} onDone={props.onDone} onRemove={props.onRemove} />)}
-      </Section>
-
-      <Section ui={ui} title="Results" count={done.length} color={DRACULA.green}>
-        {results.length === 0
-          ? <Text color={DRACULA.comment}>Finished goals show up here with what it found.</Text>
-          : results.map(goal => <Result ui={ui} goal={goal} onRemove={props.onRemove} />)}
-      </Section>
-
-      <Text color={DRACULA.comment} wrap="wrap">Rules, memory and goals are plain files in {props.dotDir}</Text>
-    </Box>
-  )
-}
-
-function Header(props: DotPaneProps) {
-  const { ui, profile, goals } = props
-  const { Box, Text, Button } = ui
-  const { status, detail } = activityOf(profile, goals)
-
-  return (
-    <Box flexDirection="row" gap={2} alignItems="flex-start">
-      {'Svg' in ui
-        ? <ui.Svg source={avatarSvg(moodOf(profile, goals), AVATAR_PX)} alt={`${profile.name}, ${status}`} width={AVATAR_PX} height={AVATAR_PX} />
-        : <Text color={DRACULA.purple}>{profile.emoji}</Text>}
-      <Box flexDirection="column" flexGrow={1} flexShrink={1} rowGap={0}>
-        <Text color={DRACULA.foreground} bold>{profile.name}</Text>
-        <Text color={STATUS_COLOR[status] ?? DRACULA.comment}>{status}</Text>
-        <Text color={DRACULA.foreground} wrap="wrap">{detail}</Text>
-        <Text color={DRACULA.comment}>
-          {profile.paused ? 'Paused · no rounds until you resume' : profile.scheduled ? 'Works in the background' : 'Background work is off'}
-        </Text>
-        <Box flexDirection="row" gap={1} marginTop={1} flexWrap="wrap">
-          {!profile.scheduled && <Button key="schedule" label="Turn on background work" dimColor onPress={props.onSchedule} />}
-          {profile.scheduled && !profile.paused && <Button key="run-now" label="Run a round now" dimColor onPress={props.onRunNow} />}
-          {profile.scheduled && <Button key="pause" label={profile.paused ? 'Resume' : 'Pause'} dimColor onPress={props.onPause} />}
+      <Box flexDirection="row" gap={2} alignItems="center">
+        {'Svg' in ui
+          ? <ui.Svg source={avatarSvg(moodOf(profile, goals), AVATAR_PX)} alt={profile.name} width={AVATAR_PX} height={AVATAR_PX} />
+          : <Text color={DRACULA.purple}>{profile.emoji}</Text>}
+        <Box flexDirection="column" flexGrow={1} flexShrink={1} rowGap={0}>
+          <Text color={DRACULA.foreground} bold>{profile.name}</Text>
+          <Text color={line.color} wrap="wrap">{line.text}</Text>
+          <Box flexDirection="row" gap={1} marginTop={1} flexWrap="wrap">
+            {!profile.scheduled && <Button key="schedule" label="Turn on background work" dimColor onPress={props.onSchedule} />}
+            {profile.scheduled && !profile.paused && round.state !== 'running' && <Button key="run-now" label="Run a round now" dimColor onPress={props.onRunNow} />}
+            {profile.scheduled && <Button key="pause" label={profile.paused ? 'Resume' : 'Pause'} dimColor onPress={props.onPause} />}
+          </Box>
         </Box>
       </Box>
-    </Box>
-  )
-}
 
-function Section({ ui, title, count, color, children }: { ui: Ui; title: string; count: number; color: string; children?: unknown }) {
-  const { Box, Text } = ui
-  return (
-    <Box flexDirection="column" rowGap={0}>
-      <Box flexDirection="row" gap={1}>
-        <Text color={color} bold>{title}</Text>
-        {count > 0 && <Text color={DRACULA.comment}>{count}</Text>}
+      {profile.scheduled && <Schedule {...props} />}
+      {notice && <Text color={NOTICE_COLOR[notice.tone]} wrap="wrap">{notice.text}</Text>}
+
+      <Box flexDirection="column" rowGap={1}>
+        {threads.length === 0 && (
+          <Text color={DRACULA.comment} wrap="wrap">Ask {profile.name} anything below. Each message becomes a goal it works on in its rounds, and its replies show up here.</Text>
+        )}
+        {threads.map(goal => <Thread ui={ui} goal={goal} name={profile.name} nextAt={clock(nextRoundAt(profile.everyMinutes, now))}
+          onAnswer={props.onAnswer} onDone={props.onDone} onRemove={props.onRemove} />)}
       </Box>
-      {children as never}
+
+      <Composer ui={ui} name={profile.name} count={goals.length} onAdd={props.onAdd} />
+      <Text color={DRACULA.comment} wrap="wrap">Its rules, memory and goals are plain files in {props.dotDir}</Text>
     </Box>
   )
 }
 
-type RowProps = { ui: Ui; goal: Goal; onDone: (id: string) => unknown; onRemove: (id: string) => unknown }
-
-function GoalRow({ ui, goal, onDone, onRemove }: RowProps) {
+function Schedule({ ui, profile, onEvery, onBriefing }: DotPaneProps) {
   const { Box, Text, Button } = ui
-  const state = ROW_STATUS[goal.status]
-  const last = goal.notes[goal.notes.length - 1] ?? ''
-
+  if ('Select' in ui) {
+    const { Select } = ui
+    return (
+      <Box flexDirection="row" gap={2} flexWrap="wrap">
+        <Select key="every" label="Rounds" value={String(profile.everyMinutes)}
+          options={ROUND_CHOICES.map(m => ({ value: String(m), label: m < 60 ? `every ${m} min` : `every ${m / 60} h` }))}
+          onSelect={(v: string) => void onEvery(Number(v))} />
+        <Select key="briefing" label="Weekday briefing" value={profile.briefing || 'off'}
+          options={BRIEFING_CHOICES.map(t => ({ value: t, label: t === 'off' ? 'off' : `at ${t}` }))}
+          onSelect={(v: string) => void onBriefing(v)} />
+      </Box>
+    )
+  }
   return (
-    <Box key={`goal-${goal.id}`} flexDirection="row" gap={1} alignItems="flex-start">
-      <Box width={STATUS_WIDTH} flexShrink={0}><Text color={state.color}>{state.label}</Text></Box>
-      <Box flexDirection="column" flexGrow={1} flexShrink={1}>
-        <Text color={DRACULA.foreground} wrap="wrap">{goal.title}</Text>
-        {last !== '' && <Text color={DRACULA.comment} wrap="wrap">{last}</Text>}
-      </Box>
-      <Box flexDirection="row" gap={1} flexShrink={0}>
-        <Button key={`done-${goal.id}`} label="Done" dimColor plain onPress={() => onDone(goal.id)} />
-        <Button key={`remove-${goal.id}`} label="Drop" dimColor plain onPress={() => onRemove(goal.id)} />
-      </Box>
+    <Box flexDirection="row" gap={1} flexWrap="wrap">
+      <Text color={DRACULA.comment}>Rounds:</Text>
+      {ROUND_CHOICES.map(m => m === profile.everyMinutes
+        ? <Text color={DRACULA.purple} bold>{m < 60 ? `${m}m` : `${m / 60}h`}</Text>
+        : <Button key={`every-${m}`} label={m < 60 ? `${m}m` : `${m / 60}h`} dimColor plain onPress={() => onEvery(m)} />)}
     </Box>
   )
 }
 
-function Result({ ui, goal, onRemove }: { ui: Ui; goal: Goal; onRemove: (id: string) => unknown }) {
+type ThreadProps = {
+  ui: Ui
+  goal: Goal
+  name: string
+  nextAt: string
+  onAnswer: (id: string, answer: string) => unknown
+  onDone: (id: string) => unknown
+  onRemove: (id: string) => unknown
+}
+
+// One goal as a short conversation: what you asked, what it answered, and where it stands
+function Thread({ ui, goal, name, nextAt, onAnswer, onDone, onRemove }: ThreadProps) {
   const { Box, Text, Button } = ui
-  return (
-    <Box key={`result-${goal.id}`} flexDirection="row" gap={1} alignItems="flex-start">
-      <Box flexDirection="column" flexGrow={1} flexShrink={1}>
-        <Text color={DRACULA.foreground} wrap="wrap">{goal.title}</Text>
-        <Text color={DRACULA.comment} wrap="wrap">{goal.notes[goal.notes.length - 1]}</Text>
-      </Box>
-      <Box flexShrink={0}><Button key={`remove-${goal.id}`} label="Clear" dimColor plain onPress={() => onRemove(goal.id)} /></Box>
-    </Box>
-  )
-}
+  const state = {
+    queued: { text: `Not started. It picks this up in the next round, around ${nextAt}.`, color: DRACULA.comment },
+    working: { text: 'In progress. More in the next round.', color: DRACULA.green },
+    waiting: { text: 'Needs your answer to continue.', color: DRACULA.orange },
+    done: { text: 'Done.', color: DRACULA.comment },
+  }[goal.status]
 
-function Question({ ui, goal, onAnswer }: { ui: Ui; goal: Goal; onAnswer: (id: string, answer: string) => unknown }) {
-  const { Box, Text } = ui
   return (
-    <Box key={`waiting-${goal.id}`} flexDirection="column" rowGap={0}>
-      <Text color={DRACULA.foreground} bold wrap="wrap">{goal.question || 'Needs your decision.'}</Text>
-      <Text color={DRACULA.comment} wrap="wrap">{goal.title}</Text>
-      {'Input' in ui && (
-        <ui.Input key={`answer-${goal.id}-${goal.notes.length}`} label="Reply" placeholder="Your decision" value=""
-          onSubmit={(text: string) => void onAnswer(goal.id, text)} />
+    <Box key={`thread-${goal.id}`} flexDirection="column" rowGap={0}>
+      <Box flexDirection="row" gap={1} alignItems="flex-start">
+        <Box width={6} flexShrink={0}><Text color={DRACULA.cyan} bold>You</Text></Box>
+        <Box flexGrow={1} flexShrink={1}><Text color={DRACULA.foreground} wrap="wrap">{goal.title}</Text></Box>
+        <Box flexDirection="row" gap={1} flexShrink={0}>
+          {goal.status !== 'done' && <Button key={`done-${goal.id}`} label="Mark done" dimColor plain onPress={() => onDone(goal.id)} />}
+          <Button key={`remove-${goal.id}`} label="Delete" dimColor plain onPress={() => onRemove(goal.id)} />
+        </Box>
+      </Box>
+      {goal.notes.map((note, index) => {
+        const mine = note.startsWith('You: ')
+        return (
+          <Box key={`note-${goal.id}-${index}`} flexDirection="row" gap={1} alignItems="flex-start">
+            <Box width={6} flexShrink={0}><Text color={mine ? DRACULA.cyan : DRACULA.purple} bold>{mine ? 'You' : name}</Text></Box>
+            <Box flexGrow={1} flexShrink={1}><Text color={DRACULA.foreground} wrap="wrap">{mine ? note.slice(5) : note}</Text></Box>
+          </Box>
+        )
+      })}
+      {goal.status === 'waiting' && goal.question !== '' && (
+        <Box flexDirection="row" gap={1} alignItems="flex-start">
+          <Box width={6} flexShrink={0}><Text color={DRACULA.purple} bold>{name}</Text></Box>
+          <Box flexGrow={1} flexShrink={1}><Text color={DRACULA.orange} bold wrap="wrap">{goal.question}</Text></Box>
+        </Box>
+      )}
+      <Box paddingLeft={7}><Text color={state.color}>{state.text}</Text></Box>
+      {goal.status === 'waiting' && 'Input' in ui && (
+        <Box paddingLeft={7}>
+          <ui.Input key={`answer-${goal.id}-${goal.notes.length}`} label="Reply" placeholder="Your answer" value=""
+            onSubmit={(text: string) => void onAnswer(goal.id, text)} />
+        </Box>
       )}
     </Box>
   )
 }
 
-// Keyed by the goal count so the field comes back empty once a goal lands
+// Keyed by the goal count so the field comes back empty once a message lands
 function Composer({ ui, name, count, onAdd }: { ui: Ui; name: string; count: number; onAdd: (title: string) => unknown }) {
   if (!('Input' in ui)) return undefined
   const { Input } = ui
-  return <Input key={`new-goal-${count}`} label={`Message ${name}`} placeholder="Review the open PRs and tell me which need me" value="" onSubmit={(text: string) => void onAdd(text)} />
+  return <Input key={`new-goal-${count}`} label={`Message ${name}`} placeholder="Check my open PRs and tell me which need me" value="" onSubmit={(text: string) => void onAdd(text)} />
 }
 
 export function PaneError({ ui, message }: { ui: Ui; message: string }) {

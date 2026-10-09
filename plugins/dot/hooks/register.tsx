@@ -4,7 +4,7 @@ import type { EngineInterface, PluginOptions, Register } from 'claude-code'
 import type { Goal, Profile } from '../types'
 import {
   addGoal, answerGoal, BRIEFING_TASK, briefingCron, briefingPrompt, DEFAULT_PROFILE, DEFAULT_RULES, dotPaths, everyMinutesCron,
-  newlyWaiting, parseGoals, stampChanged, parseProfile, removeGoal, serialize, setStatus, taskPointer, WORK_TASK, workPrompt,
+  IDLE_ROUND, newlyWaiting, parseGoals, parseRound, stampChanged, stampRound, parseProfile, removeGoal, serialize, setStatus, taskPointer, WORK_TASK, workPrompt,
 } from '../src/dot'
 import { isOn, OFF_TEXT, parseState, statePath } from '../src/shared/toggle'
 import { barIsLive, sameChip, type Chip, type ChipPress } from '../src/shared/chip'
@@ -45,15 +45,16 @@ const USAGE = 'Usage: /dot · /dot <goal> · /dot pause | resume | run | on · /
 
 const profile = atom({ plugin: 'dot', key: 'profile' } as const, DEFAULT_PROFILE)
 const goals = atom({ plugin: 'dot', key: 'goals' } as const, [])
+const round = atom({ plugin: 'dot', key: 'round' } as const, IDLE_ROUND)
 const isOpen = atom({ plugin: 'dot', key: 'isOpen' } as const, false)
 const notice = atom({ plugin: 'dot', key: 'notice' } as const, null)
 
-type Settings = { workCron: string; briefingCron: string | undefined; openOnStart: boolean }
+type Settings = { everyMinutes: number; briefing: string; openOnStart: boolean }
 
 function readSettings(options: PluginOptions): Settings {
   return {
-    workCron: everyMinutesCron(Number(options.workEveryMinutes ?? 30) || 30),
-    briefingCron: briefingCron(String(options.briefingTime ?? '09:00')),
+    everyMinutes: Math.max(5, Number(options.workEveryMinutes ?? 30) || 30),
+    briefing: String(options.briefingTime ?? '09:00'),
     openOnStart: options.openOnStart !== false,
   }
 }
@@ -66,9 +67,12 @@ async function readText($: EngineInterface, path: string) {
   return $.fs.read(path).catch(() => undefined)
 }
 
-async function ensureFiles($: EngineInterface) {
+async function ensureFiles($: EngineInterface, settings?: Settings) {
   const p = await paths($)
-  const current = parseProfile((await readText($, p.profile)) ?? '')
+  const stored = await readText($, p.profile)
+  const current = stored === undefined && settings
+    ? { ...parseProfile(''), everyMinutes: settings.everyMinutes, briefing: briefingCron(settings.briefing) ? settings.briefing : '' }
+    : parseProfile(stored ?? '')
   if ((await readText($, p.profile)) === undefined) await $.fs.write(p.profile, serialize(current))
   if ((await readText($, p.goals)) === undefined) await $.fs.write(p.goals, serialize([]))
   if ((await readText($, p.memory)) === undefined) await $.fs.write(p.memory, '# Memory\n')
@@ -92,6 +96,9 @@ async function sync($: EngineInterface) {
   if (stamped.changed) await $.fs.write(p.goals, serialize(nextGoals))
   await update($, profile, prev => (JSON.stringify(prev) === JSON.stringify(nextProfile) ? prev : nextProfile))
   await update($, goals, prev => (JSON.stringify(prev) === JSON.stringify(nextGoals) ? prev : nextGoals))
+  const stampedRound = stampRound(await read($, round), parseRound((await readText($, p.round)) ?? ''), Date.now())
+  if (stampedRound.changed) await $.fs.write(p.round, serialize(stampedRound.round))
+  await update($, round, prev => (JSON.stringify(prev) === JSON.stringify(stampedRound.round) ? prev : stampedRound.round))
   await publishChip($)
   for (const goal of newlyWaiting(before, nextGoals)) if (before.length > 0) $.ui.toast(`${nextProfile.emoji} ${nextProfile.name}: ${goal.question || goal.title}`, { timeoutMs: 10_000 })
 }
@@ -132,22 +139,45 @@ async function upsertTask($: EngineInterface, taskId: string, title: string, cro
 }
 
 async function schedule($: EngineInterface, settings: Settings) {
-  const p = await ensureFiles($)
-  const me = await read($, profile)
-  const worked = await upsertTask($, WORK_TASK, `${me.name} · work`, settings.workCron, p.work)
-  const briefed = settings.briefingCron === undefined || (await upsertTask($, BRIEFING_TASK, `${me.name} · briefing`, settings.briefingCron, p.briefing))
+  const p = await ensureFiles($, settings)
+  const me = parseProfile((await readText($, p.profile)) ?? '')
+  await update($, profile, () => me)
+  const workCron = everyMinutesCron(me.everyMinutes)
+  const morning = briefingCron(me.briefing)
+  const worked = await upsertTask($, WORK_TASK, `${me.name} · work`, workCron, p.work)
+  const briefed = morning === undefined || (await upsertTask($, BRIEFING_TASK, `${me.name} · briefing`, morning, p.briefing))
   if (worked && briefed) {
     await changeProfile($, current => ({ ...current, scheduled: true, paused: false }))
-    return say($, 'ok', `${me.name} now works in the background.`)
+    return say($, 'ok', `${me.name} now works in the background, every ${me.everyMinutes} min.`)
   }
   const ask = [
     `Set up the background work of my dot ${me.name} with the scheduled-tasks tools (create, or update if it exists):`,
-    `- taskId "${WORK_TASK}", cron "${settings.workCron}", prompt "${taskPointer(p.work)}"`,
-    settings.briefingCron ? `- taskId "${BRIEFING_TASK}", cron "${settings.briefingCron}", prompt "${taskPointer(p.briefing)}"` : '',
-    `Then set "scheduled": true in ${p.profile}.`,
+    `- taskId "${WORK_TASK}", cron "${workCron}", prompt "${taskPointer(p.work)}"`,
+    morning ? `- taskId "${BRIEFING_TASK}", cron "${morning}", prompt "${taskPointer(p.briefing)}"` : '',
+    `Then set "scheduled": true in ${p.profile}, and add "Read(~/.claude-dot/**)", "Edit(~/.claude-dot/**)" and "Write(~/.claude-dot/**)" to permissions.allow in my user settings so rounds can save their work without waiting for approval.`,
   ].filter(Boolean).join('\n')
   const filled = await $.prompt.fill({ text: ask, mode: 'replace' }).catch(() => ({ isFilled: false }))
   await say($, filled.isFilled ? 'info' : 'error', filled.isFilled ? 'The setup request is in your prompt. Press Enter to finish it.' : "The scheduling tools aren't reachable from here. Run /dot on in a session of the desktop app.")
+}
+
+async function setEvery($: EngineInterface, minutes: number) {
+  await changeProfile($, current => ({ ...current, everyMinutes: minutes }))
+  const me = await read($, profile)
+  if (!me.scheduled) return say($, 'info', `Rounds set to every ${minutes} min. Turn on background work to start them.`)
+  const ok = await upsertTask($, WORK_TASK, `${me.name} · work`, everyMinutesCron(minutes), (await paths($)).work)
+  await say($, ok ? 'ok' : 'error', ok ? `Rounds now run every ${minutes} min.` : "Couldn't change the schedule. Try again from a desktop app session.")
+}
+
+async function setBriefing($: EngineInterface, time: string) {
+  const value = time === 'off' ? '' : time
+  await changeProfile($, current => ({ ...current, briefing: value }))
+  const me = await read($, profile)
+  if (!me.scheduled) return
+  const cron = briefingCron(value)
+  const ok = cron === undefined
+    ? await callTool($, 'mcp__scheduled-tasks__update_scheduled_task', { taskId: BRIEFING_TASK, enabled: false })
+    : await upsertTask($, BRIEFING_TASK, `${me.name} · briefing`, cron, (await paths($)).briefing)
+  await say($, ok ? 'ok' : 'error', ok ? (cron ? `Weekday briefing at ${value}.` : 'Briefing turned off.') : "Couldn't change the briefing. Try again from a desktop app session.")
 }
 
 async function togglePause($: EngineInterface) {
@@ -261,7 +291,8 @@ export const register: Register = (on, options) => {
           ui={ui}
           profile={await read($, profile)}
           goals={await read($, goals)}
-          width={e.props.bodyColumns}
+          round={await read($, round)}
+          now={Date.now()}
           notice={await read($, notice)}
           dotDir={(await paths($)).dir}
           onAdd={title => changeGoals($, (list, now) => addGoal(list, title, now))}
@@ -271,6 +302,8 @@ export const register: Register = (on, options) => {
           onPause={() => togglePause($)}
           onRunNow={() => runNow($)}
           onSchedule={() => schedule($, settings)}
+          onEvery={minutes => setEvery($, minutes)}
+          onBriefing={time => setBriefing($, time)}
         />
       )
     } catch (err) {

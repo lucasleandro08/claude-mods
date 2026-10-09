@@ -1,11 +1,14 @@
-import type { Goal, GoalStatus, Profile } from '../types'
+import type { Goal, GoalStatus, Profile, RoundStatus } from '../types'
 
-export const DOT_DIR = '.claude/dot'
+export const DOT_DIR = '.claude-dot'
 export const WORK_TASK = 'dot-work'
 export const BRIEFING_TASK = 'dot-briefing'
-export const DEFAULT_PROFILE: Profile = { name: 'Vlad', emoji: '🧛', paused: false, scheduled: false }
+export const DEFAULT_PROFILE: Profile = { name: 'Vlad', emoji: '🧛', paused: false, scheduled: false, everyMinutes: 30, briefing: '09:00' }
+export const IDLE_ROUND: RoundStatus = { state: 'idle', goal: '', summary: '', at: 0 }
+export const ROUND_CHOICES = [15, 30, 60, 120] as const
+export const BRIEFING_CHOICES = ['off', '08:00', '09:00', '10:00', '18:00'] as const
 
-export type DotPaths = { dir: string; profile: string; goals: string; memory: string; rules: string; work: string; briefing: string }
+export type DotPaths = { dir: string; profile: string; goals: string; round: string; memory: string; rules: string; work: string; briefing: string }
 
 export function dotPaths(home: string): DotPaths {
   const dir = `${home}/${DOT_DIR}`
@@ -13,6 +16,7 @@ export function dotPaths(home: string): DotPaths {
     dir,
     profile: `${dir}/profile.json`,
     goals: `${dir}/goals.json`,
+    round: `${dir}/round.json`,
     memory: `${dir}/memory.md`,
     rules: `${dir}/rules.md`,
     work: `${dir}/work.md`,
@@ -28,6 +32,8 @@ export function parseProfile(text: string): Profile {
       emoji: typeof parsed.emoji === 'string' && parsed.emoji.trim() !== '' ? parsed.emoji.trim() : DEFAULT_PROFILE.emoji,
       paused: parsed.paused === true,
       scheduled: parsed.scheduled === true,
+      everyMinutes: typeof parsed.everyMinutes === 'number' && parsed.everyMinutes >= 5 ? parsed.everyMinutes : DEFAULT_PROFILE.everyMinutes,
+      briefing: typeof parsed.briefing === 'string' ? parsed.briefing : DEFAULT_PROFILE.briefing,
     }
   } catch {
     return { ...DEFAULT_PROFILE }
@@ -57,6 +63,47 @@ export function parseGoals(text: string): Goal[] {
       updatedAt: typeof g.updatedAt === 'number' ? g.updatedAt : 0,
     }]
   })
+}
+
+export function parseRound(text: string): RoundStatus {
+  try {
+    const parsed = JSON.parse(text) as Partial<RoundStatus>
+    return {
+      state: parsed.state === 'running' ? 'running' : 'idle',
+      goal: typeof parsed.goal === 'string' ? parsed.goal : '',
+      summary: typeof parsed.summary === 'string' ? parsed.summary : '',
+      at: typeof parsed.at === 'number' ? parsed.at : 0,
+    }
+  } catch {
+    return { ...IDLE_ROUND }
+  }
+}
+
+// Rounds write their state without a clock; the mod stamps the moment it sees it change
+export function stampRound(before: RoundStatus, after: RoundStatus, now: number): { round: RoundStatus; changed: boolean } {
+  const moved = before.state !== after.state || before.goal !== after.goal || before.summary !== after.summary
+  if (after.at !== 0 && !moved) return { round: after, changed: false }
+  return { round: { ...after, at: moved || after.at === 0 ? now : after.at }, changed: true }
+}
+
+export function nextRoundAt(everyMinutes: number, now: number) {
+  const d = new Date(now)
+  d.setSeconds(0, 0)
+  if (everyMinutes < 60) {
+    const m = d.getMinutes()
+    d.setMinutes(m - (m % everyMinutes) + everyMinutes)
+  } else {
+    const hours = Math.round(everyMinutes / 60)
+    const h = d.getHours()
+    d.setMinutes(0)
+    d.setHours(h - (h % hours) + hours)
+  }
+  return d.getTime()
+}
+
+export function clock(ms: number) {
+  const d = new Date(ms)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
 export function serialize(value: unknown) {
@@ -137,7 +184,7 @@ Each action falls in one level. When unsure, use the stricter one.
 ## Act without asking
 - Read code, files, docs, logs, dashboards and connected apps.
 - Run read-only commands and tests on the local machine.
-- Write notes and drafts inside ~/.claude/dot/ and in local branches or worktrees.
+- Write notes and drafts inside ~/.claude-dot/ and in local branches or worktrees.
 
 ## Ask first (set the goal to "waiting" with a question)
 - Commit, push, open or comment on pull requests.
@@ -154,16 +201,18 @@ export function workPrompt(name: string, paths: DotPaths) {
   return `You are ${name}, the user's always-on assistant. This is one background work round; nobody is watching it live.
 
 1. Read ${paths.profile}. If "paused" is true, stop now without doing anything.
+   Then write ${paths.round} as {"state": "running", "goal": "<title of the goal you pick>", "summary": ""} once you pick a goal (step 3).
 2. Read ${paths.goals} (a JSON array of goals), ${paths.rules} and ${paths.memory}.
 3. Pick ONE goal: the oldest with status "working", else the oldest "queued". If none, stop now: do not invent work.
 4. Set it to "working" and work on it for this round only. Follow the rules file strictly: anything under "Ask first" or "Hand off" must not be done.
 5. Before finishing, update that goal in ${paths.goals} (keep every other goal untouched, keep valid JSON):
-   - append one short note to "notes" with what you did and what is next;
+   - append one note to "notes" written to the user, as a reply: what you did or found, and what is next. Answer their question directly when the goal is a question;
    - status "done" when the goal is complete;
    - status "waiting" with a one-sentence "question" when you need a decision, an approval or a hand-off, then send a desktop notification (PushNotification) saying "${name}: " and the question;
    - otherwise keep "working".
    Leave "createdAt" and "updatedAt" as they are: the dot stamps them. Edit the file with the Edit or Write tool, not the shell.
 6. Add to ${paths.memory} anything durable you learned about the user's preferences or setup (short bullets, no secrets).
+7. Last, write ${paths.round} as {"state": "idle", "goal": "<that goal's title>", "summary": "<one short line of what this round did>"}. If there was no goal, leave ${paths.round} untouched.
 
 Use the shell only when the goal itself needs a command, never for bookkeeping. Never print or store secrets. Write notes in the language the goal was written in.`
 }
