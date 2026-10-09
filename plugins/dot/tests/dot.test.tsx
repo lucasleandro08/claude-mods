@@ -2,7 +2,7 @@ import type { On } from 'claude-code'
 import { describe, expect, mock, test } from 'claude-code/testing'
 
 import { avatarSvg } from '../src/avatar'
-import { activityOf, addGoal, answerGoal, briefingCron, everyMinutesCron, moodOf, newlyWaiting, parseGoals, parseProfile, stampChanged, parseRound, stampRound, nextRoundAt, clock, safeRun } from '../src/dot'
+import { activityOf, addGoal, answerGoal, briefingCron, everyMinutesCron, moodOf, newlyWaiting, parseGoals, parseProfile, stampChanged, parseRound, stampRound, nextRoundAt, clock } from '../src/dot'
 
 const HOME = '/home/dev'
 const DIR = `${HOME}/.claude-dot`
@@ -70,48 +70,6 @@ describe('dot', () => {
       }
     })
   }
-
-  test('inside a round, a call that would wait for approval is denied instead', async ($, on) => {
-    disk(on, {})
-    on('tool.check', () => ({ decision: 'ask' as const }))
-    on('tool.call', { tool: 'Read' }, () => ({ result: {} as never }))
-    const bash = { tool: 'Bash', input: { command: 'find ~ -name .git' } }
-    expect((await $.tool.check(bash)).decision).toBe('ask')
-    await $.tool.call({ tool: 'Read', file_path: `${DIR}/work.md` } as never)
-    const verdict = await $.tool.check(bash)
-    expect(verdict.decision).toBe('deny')
-    expect(verdict.reason).toContain('"waiting"')
-  })
-
-  test('inside a round, read-only git runs through the dot and anything else is refused', async ($, on) => {
-    disk(on, {})
-    const ran: { argv: readonly string[]; cwd?: string }[] = []
-    on('process.run', ($, e) => {
-      ran.push({ argv: e.argv, cwd: e.init?.cwd })
-      return { value: { exitCode: 0, stdout: 'abc123 fix the thing', stderr: '' } }
-    })
-    on('tool.call', { tool: 'Read' }, () => ({ result: {} as never }))
-    on('tool.call', { tool: 'Bash' }, () => ({ result: {} as never }))
-    await $.tool.call({ tool: 'Read', file_path: `${DIR}/work.md` } as never)
-    const log = await $.tool.call({ tool: 'Bash', command: 'cd ~/claude-mods && git log -1 --oneline' } as never)
-    expect(log.deny).toContain('abc123 fix the thing')
-    expect(ran[0]?.argv.slice(1)).toEqual(['log', '-1', '--oneline'])
-    expect(ran[0]?.cwd).toBe(`${HOME}/claude-mods`)
-    const find = await $.tool.call({ tool: 'Bash', command: 'find ~ -name .git | head' } as never)
-    expect(find.deny).toContain('"waiting"')
-    expect(ran.length).toBe(1)
-  })
-
-  test('safeRun accepts only the read-only commands', () => {
-    expect(safeRun('git -C /r log -1', '/h')).toEqual({ argv: ['git', 'log', '-1'], cwd: '/r' })
-    expect(safeRun('gh pr list --author @me', '/h')?.argv).toEqual(['gh', 'pr', 'list', '--author', '@me'])
-    expect(safeRun('git log --format="%h %s"', '/h')?.argv).toEqual(['git', 'log', '--format=%h %s'])
-    expect(safeRun('git push', '/h')).toBeUndefined()
-    expect(safeRun('git branch -D main', '/h')).toBeUndefined()
-    expect(safeRun('git log; rm -rf ~', '/h')).toBeUndefined()
-    expect(safeRun('cd /r && git log | head', '/h')).toBeUndefined()
-    expect(safeRun('gh pr merge 1', '/h')).toBeUndefined()
-  })
 
   test('turning background work on schedules the work and briefing rounds', { options: { workEveryMinutes: 20, briefingTime: '08:30' } }, async ($, on) => {
     const files = disk(on, {})

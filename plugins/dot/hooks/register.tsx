@@ -3,11 +3,10 @@ import type { EngineInterface, PluginOptions, Register } from 'claude-code'
 
 import type { Goal, Profile } from '../types'
 import {
-  addGoal, allowRules, answerGoal, safeRun, BRIEFING_TASK, briefingCron, briefingPrompt, DEFAULT_PROFILE, DEFAULT_RULES, dotPaths, everyMinutesCron,
+  addGoal, allowRules, answerGoal, BRIEFING_TASK, briefingCron, briefingPrompt, DEFAULT_PROFILE, DEFAULT_RULES, dotPaths, everyMinutesCron,
   IDLE_ROUND, newlyWaiting, parseGoals, parseRound, stampChanged, stampRound, parseProfile, removeGoal, serialize, setStatus, taskPointer, WORK_TASK, workPrompt,
 } from '../src/dot'
 import { isOn, OFF_TEXT, parseState, statePath } from '../src/shared/toggle'
-import { binaryCandidates } from '../src/shared/bin'
 import { barIsLive, sameChip, type Chip, type ChipPress } from '../src/shared/chip'
 import { DRACULA } from '../src/shared/theme'
 import { dotChip } from '../ui/chip'
@@ -49,16 +48,6 @@ const goals = atom({ plugin: 'dot', key: 'goals' } as const, [])
 const round = atom({ plugin: 'dot', key: 'round' } as const, IDLE_ROUND)
 const isOpen = atom({ plugin: 'dot', key: 'isOpen' } as const, false)
 const notice = atom({ plugin: 'dot', key: 'notice' } as const, null)
-// True in the unattended session of a work or briefing round, where an approval prompt would hang forever
-const inRound = atom({ plugin: 'dot', key: 'inRound' } as const, false)
-
-const ROUND_DENY = 'Nobody can approve tool calls in this unattended dot round. Do not retry or work around it: set the goal to "waiting" and put in "question" what the user should run or allow.'
-
-async function markRound($: EngineInterface, text: string) {
-  const p = await paths($)
-  if (text.includes(p.work) || text.includes(p.briefing)) await update($, inRound, () => true)
-}
-
 type Settings = { everyMinutes: number; briefing: string; openOnStart: boolean }
 
 function readSettings(options: PluginOptions): Settings {
@@ -231,41 +220,6 @@ export const register: Register = (on, options) => {
     $.clock.every(CHECK_MS, () => void sync($).catch(() => undefined))
     if (settings.openOnStart) $.clock.after(1000, () => void isActive($).then(enabled => (enabled ? openPane($) : undefined)).catch(() => undefined))
     return next(e)
-  })
-
-  on('prompt.submit', async ($, e, next) => {
-    await markRound($, e.text).catch(() => undefined)
-    return next(e)
-  })
-
-  on('tool.call', { tool: 'Read' }, async ($, e, next) => {
-    await markRound($, String(e.file_path ?? '')).catch(() => undefined)
-    return next(e)
-  })
-
-  // Approval prompts hang an unattended round, so inside one the dot runs the read-only commands itself and refuses the rest
-  on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
-    if (!(await read($, inRound))) return next(e)
-    const home = await $.env.get('HOME').catch(() => undefined)
-    const safe = safeRun(String(e.command ?? ''), home)
-    if (!safe) return { deny: ROUND_DENY }
-    const [name, ...args] = safe.argv
-    for (const bin of binaryCandidates(name, home)) {
-      try {
-        const ran = await $.process.run([bin, ...args], { cwd: safe.cwd, timeoutMs: 30_000, env: { GIT_PAGER: 'cat', PAGER: 'cat', GH_PAGER: 'cat' } })
-        const output = [ran.stdout, ran.stderr].filter(Boolean).join('\n').slice(0, 30_000)
-        return ran.exitCode === 0 ? { deny: `(ran by the dot, exit 0)\n${output}` } : { deny: `(ran by the dot, exit ${ran.exitCode})\n${output}` }
-      } catch {
-        continue
-      }
-    }
-    return { deny: `${name} isn't installed where the dot can run it. ${ROUND_DENY}` }
-  })
-
-  on('tool.check', async ($, e, next) => {
-    const verdict = await next(e)
-    if (verdict.decision !== 'ask' || !(await read($, inRound))) return verdict
-    return { decision: 'deny', reason: ROUND_DENY }
   })
 
   on('command.run', { command: 'dot' }, async ($, e) => {

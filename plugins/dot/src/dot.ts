@@ -177,63 +177,8 @@ export function briefingCron(time: string) {
   return `${minute} ${hour} * * 1-5`
 }
 
-// Read-only commands a round may run without approval; settings get a matching Bash(<command>:*) rule each
-export const SAFE_COMMANDS = ['git log', 'git status', 'git diff', 'git show', 'git branch', 'gh pr list', 'gh pr view', 'gh run list', 'gh run view']
-
 export function allowRules(): string[] {
-  return [`Read(~/${DOT_DIR}/**)`, `Edit(~/${DOT_DIR}/**)`, ...SAFE_COMMANDS.map(command => `Bash(${command}:*)`)]
-}
-
-export type SafeRun = { argv: string[]; cwd: string | undefined }
-
-// Shell-like split: quotes group and are dropped, so --format="%h %s" stays one word
-function words(text: string): string[] {
-  const out: string[] = []
-  let word = ''
-  let quote = ''
-  let started = false
-  for (const char of text) {
-    if (quote) {
-      if (char === quote) quote = ''
-      else word += char
-    } else if (char === '"' || char === "'") {
-      quote = char
-      started = true
-    } else if (/\s/.test(char)) {
-      if (started || word) out.push(word)
-      word = ''
-      started = false
-    } else {
-      word += char
-    }
-  }
-  if (started || word) out.push(word)
-  return out
-}
-
-// Splits "cd <dir> && git log ..." or "git -C <dir> log ..." into argv and cwd when it is one of SAFE_COMMANDS and nothing else
-export function safeRun(command: string, home: string | undefined): SafeRun | undefined {
-  let rest = command.trim()
-  let cwd: string | undefined
-  const cd = /^cd\s+("[^"]+"|'[^']+'|\S+)\s*&&\s*/.exec(rest)
-  if (cd) {
-    cwd = cd[1].replace(/^["']|["']$/g, '')
-    rest = rest.slice(cd[0].length)
-  }
-  if (/[|;&<>`$()\n\\]/.test(rest.replace(/"[^"]*"|'[^']*'/g, ''))) return undefined
-  const argv = words(rest)
-  if (argv.length < 2) return undefined
-  if (argv[0] === 'git' && argv[1] === '-C' && argv[2]) {
-    cwd = argv[2]
-    argv.splice(1, 2)
-  }
-  const head = `${argv[0]} ${argv[1]}${argv[0] === 'gh' ? ` ${argv[2] ?? ''}` : ''}`
-  if (!SAFE_COMMANDS.includes(head)) return undefined
-  if (argv.some(arg => /^--(output|exec|ext-diff|textconv)\b|^-o$|^--web$/.test(arg))) return undefined
-  const branchFlag = /^(-a|-r|-v|-vv|--all|--remotes|--list|--show-current|--verbose|--sort=.*|--format=.*|--contains|--merged|--no-merged)$/
-  if (head === 'git branch' && !argv.slice(2).every(arg => branchFlag.test(arg))) return undefined
-  if (cwd && home) cwd = cwd.replace(/^~(?=\/|$)/, home)
-  return { argv, cwd }
+  return [`Read(~/${DOT_DIR}/**)`, `Edit(~/${DOT_DIR}/**)`]
 }
 
 export const DEFAULT_RULES = `# Rules
@@ -273,12 +218,11 @@ export function workPrompt(name: string, paths: DotPaths) {
 6. Add to ${paths.memory} anything durable you learned about the user's preferences or setup (short bullets, no secrets).
 7. Last, write ${paths.round} as {"state": "idle", "goal": "<that goal's title>", "summary": "<one short line of what this round did>"}. If there was no goal, leave ${paths.round} untouched.
 
-Nobody can approve anything during this round: a tool call that asks for approval hangs it forever. So:
-- prefer the Read, Grep and Glob tools;
-- in the shell, run only these read-only commands, written as "cd <repository> && <command>": ${SAFE_COMMANDS.join(', ')}. No pipes, nothing else chained;
-- those come back as an error marked "(ran by the dot, exit N)" followed by the real output: read it as the command's result;
-- any other call is refused in this round; when the goal needs one, set the goal to "waiting" and ask the user to run it or to allow it.
-Never use the shell for bookkeeping. Never print or store secrets. Write notes in the language the goal was written in.`
+Nobody can approve anything during this round: any call that asks for approval hangs it forever. So:
+- never use the shell (Bash) at all. Use only Read, Grep and Glob, which work anywhere under the home folder without approval;
+- for git history, Read <repository>/.git/logs/HEAD: each line is "old new author <email> timestamp timezone<TAB>action: message", the last line is the latest commit; the current branch is in <repository>/.git/HEAD;
+- if the goal really needs a command, a web request or a connected app, do not try it: set the goal to "waiting" and ask the user to run it, with the exact command.
+Never print or store secrets. Write notes in the language the goal was written in.`
 }
 
 export function briefingPrompt(name: string, paths: DotPaths) {
