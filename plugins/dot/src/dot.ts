@@ -192,6 +192,7 @@ Each action falls in one level. When unsure, use the stricter one.
 - Write notes and drafts inside ~/.claude-dot/ and in local branches or worktrees.
 
 ## Ask first (set the goal to "waiting" with a question)
+- Send a message into another Claude Code session, unless the goal itself asks for exactly that.
 - Commit, push, open or comment on pull requests.
 - Send any message (Slack, email, PR comments) on the user's behalf.
 - Change shared configuration, deploy anything, or write to a staging environment.
@@ -224,6 +225,7 @@ Nobody can approve anything during this round: any call that asks for approval h
 - for git history, Read <repository>/.git/logs/HEAD: each line is "old new author <email> timestamp timezone<TAB>action: message", the last line is the latest commit; the current branch is in <repository>/.git/HEAD;
 - connected apps (Slack, email, calendar…): their read tools (search, read, list, get) are pre-approved. Load tools with ToolSearch first when they are deferred;
 - the only other tools that run without approval are these (any tool not listed here or above hangs the round, so never call it): ${allowedTools.length > 0 ? allowedTools.join(', ') : 'none'}. When an approved action needs a tool that is not listed, say in the note exactly which tool name the user should add to permissions.allow in ~/.claude/settings.json;
+- your other Claude Code sessions: list_sessions, get_session, list_events and search_session_transcripts (mcp__ccd_session_mgmt__*) show what each one is doing; read them freely. send_message (or SendMessage) delivers a message into one as a user turn, so that session acts on it: only send when the goal itself asks you to, or the user approved that exact message in the thread, and say in the note which session you messaged and what;
 - when the app isn't connected (ToolSearch finds no tool for it), say so in the note and tell the user to connect it in the claude.ai connector settings;
 - if the goal really needs a shell command or a web request, do not try it: set the goal to "waiting" and ask the user to run it, with the exact command.
 Never print or store secrets. Write notes in the user's language (see the memory file), else the goal's language. Keep notes short and scannable: lead with the answer, then a few short lines or a numbered list.`
