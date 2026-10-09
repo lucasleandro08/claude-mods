@@ -48,6 +48,15 @@ const goals = atom({ plugin: 'dot', key: 'goals' } as const, [])
 const round = atom({ plugin: 'dot', key: 'round' } as const, IDLE_ROUND)
 const isOpen = atom({ plugin: 'dot', key: 'isOpen' } as const, false)
 const notice = atom({ plugin: 'dot', key: 'notice' } as const, null)
+// True in the unattended session of a work or briefing round, where an approval prompt would hang forever
+const inRound = atom({ plugin: 'dot', key: 'inRound' } as const, false)
+
+const ROUND_DENY = 'Nobody can approve tool calls in this unattended dot round. Do not retry or work around it: set the goal to "waiting" and put in "question" what the user should run or allow.'
+
+async function markRound($: EngineInterface, text: string) {
+  const p = await paths($)
+  if (text.includes(p.work) || text.includes(p.briefing)) await update($, inRound, () => true)
+}
 
 type Settings = { everyMinutes: number; briefing: string; openOnStart: boolean }
 
@@ -221,6 +230,22 @@ export const register: Register = (on, options) => {
     $.clock.every(CHECK_MS, () => void sync($).catch(() => undefined))
     if (settings.openOnStart) $.clock.after(1000, () => void isActive($).then(enabled => (enabled ? openPane($) : undefined)).catch(() => undefined))
     return next(e)
+  })
+
+  on('prompt.submit', async ($, e, next) => {
+    await markRound($, e.text).catch(() => undefined)
+    return next(e)
+  })
+
+  on('tool.call', { tool: 'Read' }, async ($, e, next) => {
+    await markRound($, String(e.file_path ?? '')).catch(() => undefined)
+    return next(e)
+  })
+
+  on('tool.check', async ($, e, next) => {
+    const verdict = await next(e)
+    if (verdict.decision !== 'ask' || !(await read($, inRound))) return verdict
+    return { decision: 'deny', reason: ROUND_DENY }
   })
 
   on('command.run', { command: 'dot' }, async ($, e) => {

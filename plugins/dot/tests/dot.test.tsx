@@ -71,6 +71,18 @@ describe('dot', () => {
     })
   }
 
+  test('inside a round, a call that would wait for approval is denied instead', async ($, on) => {
+    disk(on, {})
+    on('tool.check', () => ({ decision: 'ask' as const }))
+    on('tool.call', { tool: 'Read' }, () => ({ result: {} as never }))
+    const bash = { tool: 'Bash', input: { command: 'find ~ -name .git' } }
+    expect((await $.tool.check(bash)).decision).toBe('ask')
+    await $.tool.call({ tool: 'Read', file_path: `${DIR}/work.md` } as never)
+    const verdict = await $.tool.check(bash)
+    expect(verdict.decision).toBe('deny')
+    expect(verdict.reason).toContain('"waiting"')
+  })
+
   test('turning background work on schedules the work and briefing rounds', { options: { workEveryMinutes: 20, briefingTime: '08:30' } }, async ($, on) => {
     const files = disk(on, {})
     const calls: string[] = []
