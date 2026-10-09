@@ -216,7 +216,7 @@ export const register: Register = (on, options) => {
     return (
       <ui.Box flexDirection="column">
         {rest}
-        <DotHero ui={ui} profile={await read($, profile)} goals={await read($, goals)} width={e.props.bodyColumns} onOpen={() => openPane($)} />
+        <DotHero ui={ui} profile={await read($, profile)} goals={await read($, goals)} onOpen={() => openPane($)} onRunNow={() => runNow($)} />
       </ui.Box>
     )
   })

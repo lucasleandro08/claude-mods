@@ -89,6 +89,7 @@ export function avatarSvg(mood: Mood, size = 96) {
   const p = PALETTE
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 110 110">
 <style>${STYLE}</style>
+<rect width="110" height="110" rx="22" fill="${p.ink}"/>
 ${effects(mood)}
 <g class="bob">
   <path class="cape" d="M22 76 Q55 64 88 76 L98 110 L12 110 Z" fill="${p.capeOut}"/>

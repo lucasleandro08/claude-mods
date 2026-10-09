@@ -7,6 +7,8 @@ import { DRACULA } from '../src/shared/theme'
 
 type Ui = Elements[RenderSurface]
 
+const AVATAR_PX = 56
+
 const STATUS_COLOR: Record<string, string> = {
   working: DRACULA.green,
   'waiting on you': DRACULA.orange,
@@ -16,23 +18,27 @@ const STATUS_COLOR: Record<string, string> = {
   idle: DRACULA.comment,
 }
 
-// Centered above the prompt: the animated avatar, its name and what it is doing right now
-export function DotHero({ ui, profile, goals, width, onOpen }: { ui: Ui; profile: Profile; goals: Goal[]; width: number; onOpen: () => unknown }) {
+// A full-width row above the prompt: the animated avatar, then who it is and what it is doing, wrapping instead of cutting
+export function DotHero({ ui, profile, goals, onOpen, onRunNow }: { ui: Ui; profile: Profile; goals: Goal[]; onOpen: () => unknown; onRunNow: () => unknown }) {
   const { Box, Text, Button } = ui
   const { status, detail } = activityOf(profile, goals)
   const color = STATUS_COLOR[status] ?? DRACULA.comment
 
   return (
-    <Box flexDirection="column" alignItems="center" marginBottom={1}>
+    <Box flexDirection="row" alignItems="center" gap={2} paddingX={1} marginBottom={1}>
       {'Svg' in ui
-        ? <ui.Svg source={avatarSvg(moodOf(profile, goals), 72)} alt={`${profile.name}, ${status}`} width={72} height={72} isInteractive />
+        ? <ui.Svg source={avatarSvg(moodOf(profile, goals), AVATAR_PX)} alt={`${profile.name}, ${status}`} width={AVATAR_PX} height={AVATAR_PX} isInteractive />
         : <Text color={DRACULA.purple}>{profile.emoji}</Text>}
-      <Box flexDirection="row" gap={1} alignItems="center">
-        <Button key="open-dot" label={profile.name} dimColor plain onPress={onOpen} />
-        <Text color={color}>{status}</Text>
+      <Box flexDirection="column" flexGrow={1} flexShrink={1}>
+        <Box flexDirection="row" gap={1} alignItems="center">
+          <Text color={DRACULA.foreground} bold>{profile.name}</Text>
+          <Text color={color}>{status}</Text>
+        </Box>
+        <Text color={DRACULA.comment} wrap="wrap">{detail}</Text>
       </Box>
-      <Box width={Math.min(width, 72)} justifyContent="center">
-        <Text color={DRACULA.comment} wrap="truncate-end">{detail}</Text>
+      <Box flexDirection="row" gap={1}>
+        {profile.scheduled && !profile.paused && <Button key="hero-run" label="Run now" dimColor onPress={onRunNow} />}
+        <Button key="open-dot" label="Open" dimColor onPress={onOpen} />
       </Box>
     </Box>
   )
