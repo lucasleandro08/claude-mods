@@ -7,8 +7,9 @@ import {
   newlyWaiting, parseGoals, parseProfile, removeGoal, serialize, setStatus, taskPointer, WORK_TASK, workPrompt,
 } from '../src/dot'
 import { isOn, OFF_TEXT, parseState, statePath } from '../src/shared/toggle'
-import type { ChipPress } from '../src/shared/chip'
-import { DotHero } from '../ui/hero'
+import { barIsLive, sameChip, type Chip, type ChipPress } from '../src/shared/chip'
+import { DRACULA } from '../src/shared/theme'
+import { dotChip } from '../ui/chip'
 import { DotPane, PaneError } from '../ui/pane'
 
 const MOD = 'dot'
@@ -27,6 +28,17 @@ async function isActive($: EngineInterface) {
   return read($, active)
 }
 
+
+const chip = atom({ plugin: 'dot', key: 'chip' } as const, null)
+
+async function barOwnsChips($: EngineInterface) {
+  const { value } = await $.state.get({ plugin: 'mod-manager', key: 'bar' })
+  return barIsLive(value, Date.now())
+}
+
+async function setChip($: EngineInterface, next: Chip | null) {
+  await update($, chip, prev => (sameChip(prev, next) ? prev : next))
+}
 
 const PANE_ID = 'dot'
 const USAGE = 'Usage: /dot · /dot <goal> · /dot pause | resume | run | on · /dot name <name> [emoji]'
@@ -65,14 +77,19 @@ async function ensureFiles($: EngineInterface) {
   return p
 }
 
+async function publishChip($: EngineInterface) {
+  await setChip($, (await read($, active)) ? dotChip(await read($, profile), await read($, goals)) : null)
+}
+
 async function sync($: EngineInterface) {
-  if (!(await isActive($))) return
+  if (!(await isActive($))) return publishChip($)
   const p = await paths($)
   const nextProfile = parseProfile((await readText($, p.profile)) ?? '')
   const nextGoals = parseGoals((await readText($, p.goals)) ?? '[]')
   const before = await read($, goals)
   await update($, profile, prev => (JSON.stringify(prev) === JSON.stringify(nextProfile) ? prev : nextProfile))
   await update($, goals, prev => (JSON.stringify(prev) === JSON.stringify(nextGoals) ? prev : nextGoals))
+  await publishChip($)
   for (const goal of newlyWaiting(before, nextGoals)) if (before.length > 0) $.ui.toast(`${nextProfile.emoji} ${nextProfile.name}: ${goal.question || goal.title}`, { timeoutMs: 10_000 })
 }
 
@@ -206,17 +223,21 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
-  // The dot is a presence, not a chip: it sits centered above the prompt whether or not the mods bar is on
+  // Only a tile in the mods bar (or one line without it); the dot itself lives in its own pane
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (!(await read($, active))) return next(e)
+    if (!(await read($, active)) || (await barOwnsChips($))) return next(e)
     const rest = await next(e)
-    if (e.props.hasSurvey) return rest
+    const own = await read($, chip)
+    if (e.props.hasSurvey || !own) return rest
 
     const ui = $.ui.resolve(e)
     return (
       <ui.Box flexDirection="column">
+        <ui.Box flexDirection="row" gap={1} alignItems="center" marginBottom={1}>
+          <ui.Text color={DRACULA.purple}>{own.icon}</ui.Text>
+          <ui.Button key="open-dot" label={`${(await read($, profile)).name} · ${own.parts[0]?.text ?? ''}`} dimColor onPress={() => openPane($)} />
+        </ui.Box>
         {rest}
-        <DotHero ui={ui} profile={await read($, profile)} goals={await read($, goals)} onOpen={() => openPane($)} onRunNow={() => runNow($)} />
       </ui.Box>
     )
   })

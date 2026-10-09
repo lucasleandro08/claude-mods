@@ -120,7 +120,7 @@ describe('dot', () => {
     expect(files[`${DIR}/work.md`]).toContain('You are Renfield')
   })
 
-  test('the hero sits under the band with the mood and what waits on you', async ($, on) => {
+  test('without the mods bar it shows one line that opens its pane', async ($, on) => {
     disk(on, { [`${DIR}/goals.json`]: JSON.stringify([{ id: 'a', title: 'x', status: 'waiting', notes: [], question: 'ok?', createdAt: 1, updatedAt: 1 }]) })
     on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
       const { Text } = $.ui.resolve(e)
@@ -131,12 +131,19 @@ describe('dot', () => {
     await $.session.start({ source: 'startup', cwd: '/tmp' } as never).catch(() => undefined)
     await clock.advance(5000)
     const band = await $.ui.mount({ plugin: 'dot', surface: 'desktop', component: 'AbovePrompt', props: BAND })
-    expect((await band.find({ type: 'Button', key: 'open-dot' }))?.props.label).toBe('Open')
-    expect(await band.find({ text: 'Vlad' })).toBeDefined()
-    expect(await band.find({ text: 'waiting on you' })).toBeDefined()
-    expect(await band.find({ text: 'ok?' })).toBeDefined()
-    expect(String((await band.find({ type: 'Svg' }))?.props.source)).toContain('class="bang"')
+    expect((await band.find({ type: 'Button', key: 'open-dot' }))?.props.label).toBe('Vlad · 1 waiting on you')
+    expect(await band.find({ type: 'Svg' })).toBeUndefined()
     expect(await band.find({ text: 'beneath' })).toBeDefined()
+  })
+
+  test('the pane leads with the animated avatar', async ($, on) => {
+    disk(on, { [`${DIR}/goals.json`]: JSON.stringify([{ id: 'a', title: 'x', status: 'waiting', notes: [], question: 'ok?', createdAt: 1, updatedAt: 1 }]) })
+    await $.command.run({ command: 'dot', args: '' } as never)
+    const pane = await $.ui.mount({ plugin: 'dot', surface: 'desktop', component: 'Pane', requestId: 'dot', props: PANE })
+    const svg = await pane.find({ type: 'Svg' })
+    expect(svg?.props.width).toBe(120)
+    expect(String(svg?.props.source)).toContain('class="bang"')
+    expect(await pane.find({ text: 'waiting on you' })).toBeDefined()
   })
 })
 

@@ -10,7 +10,7 @@ import type { Chip } from '../src/shared/chip'
 import { ModsPane } from '../ui/pane'
 
 const PANE_ID = 'mod-manager'
-const VERSION = '2.6.1'
+const VERSION = '2.6.2'
 const REFRESH_MS = 10_000
 const BAR_BEAT_MS = 10_000
 
@@ -33,6 +33,7 @@ async function readChips($: EngineInterface): Promise<BarEntry[]> {
     ['docker-pane', (await $.state.get({ plugin: 'docker-pane', key: 'chip' })).value],
     ['deploy-watch', (await $.state.get({ plugin: 'deploy-watch', key: 'chip' })).value],
     ['worktrees', (await $.state.get({ plugin: 'worktrees', key: 'chip' })).value],
+    ['dot', (await $.state.get({ plugin: 'dot', key: 'chip' })).value],
   ]
   return found.flatMap(([plugin, chip]) => (chip ? [{ plugin, chip }] : []))
 }

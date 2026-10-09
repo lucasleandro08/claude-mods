@@ -20,6 +20,7 @@ declare module 'claude-code' {
     'mod-manager': { bar: number; press: ChipPress | null }
     dot: {
       active: boolean
+      chip: Chip | null
       profile: Profile
       goals: Goal[]
       isOpen: boolean

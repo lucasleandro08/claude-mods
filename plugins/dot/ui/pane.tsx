@@ -7,7 +7,17 @@ import { DRACULA } from '../src/shared/theme'
 
 type Ui = Elements[RenderSurface]
 
+const HERO_PX = 120
 const RECENT_SHOWN = 6
+
+const STATUS_COLOR: Record<string, string> = {
+  working: DRACULA.green,
+  'waiting on you': DRACULA.orange,
+  paused: DRACULA.comment,
+  'up next': DRACULA.purple,
+  queued: DRACULA.purple,
+  idle: DRACULA.comment,
+}
 const RESULTS_SHOWN = 4
 
 export type DotPaneProps = {
@@ -43,20 +53,19 @@ export function DotPane(props: DotPaneProps) {
 
   return (
     <Box flexDirection="column" backgroundColor={DRACULA.background} paddingX={2} paddingY={1} rowGap={1}>
-      <Box flexDirection="row" alignItems="center" gap={2}>
+      <Box flexDirection="column" alignItems="center" rowGap={0} paddingY={1}>
         {'Svg' in ui
-          ? <ui.Svg source={avatarSvg(moodOf(profile, goals), 64)} alt={profile.name} width={64} height={64} isInteractive />
+          ? <ui.Svg source={avatarSvg(moodOf(profile, goals), HERO_PX)} alt={`${profile.name}, ${status}`} width={HERO_PX} height={HERO_PX} isInteractive />
           : <Text color={DRACULA.purple}>{profile.emoji}</Text>}
-        <Box flexDirection="column" flexGrow={1} flexShrink={1}>
-          <Text color={DRACULA.foreground} bold>{profile.name}</Text>
-          <Text color={profile.paused ? DRACULA.comment : DRACULA.green}>
-            {profile.paused ? 'Paused' : profile.scheduled ? 'Active · works in the background' : 'Background work off'}
-          </Text>
-          <Text color={DRACULA.comment} wrap="truncate-end">{status} · {detail}</Text>
-        </Box>
+        <Text color={DRACULA.foreground} bold>{profile.name}</Text>
+        <Text color={STATUS_COLOR[status] ?? DRACULA.comment}>{status}</Text>
+        <Text color={DRACULA.comment} wrap="wrap">{detail}</Text>
+        <Text color={profile.paused ? DRACULA.comment : profile.scheduled ? DRACULA.green : DRACULA.orange}>
+          {profile.paused ? 'Paused' : profile.scheduled ? 'Works in the background' : 'Background work off'}
+        </Text>
       </Box>
 
-      <Box flexDirection="row" gap={1}>
+      <Box flexDirection="row" gap={1} justifyContent="center">
         {profile.scheduled
           ? (
             <Box flexDirection="row" gap={1}>
