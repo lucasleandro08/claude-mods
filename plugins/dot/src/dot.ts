@@ -221,7 +221,9 @@ export function workPrompt(name: string, paths: DotPaths) {
 Nobody can approve anything during this round: any call that asks for approval hangs it forever. So:
 - never use the shell (Bash) at all. Use only Read, Grep and Glob, which work anywhere under the home folder without approval;
 - for git history, Read <repository>/.git/logs/HEAD: each line is "old new author <email> timestamp timezone<TAB>action: message", the last line is the latest commit; the current branch is in <repository>/.git/HEAD;
-- if the goal really needs a command, a web request or a connected app, do not try it: set the goal to "waiting" and ask the user to run it, with the exact command.
+- connected apps (Slack, email, calendar…): use their read tools freely (search, read, list, get): those are pre-approved. Load them with ToolSearch first when they are deferred. Never call a tool that sends, posts, drafts, schedules, reacts, creates, updates or deletes: that is "Ask first";
+- when the app isn't connected (ToolSearch finds no tool for it), say so in the note and tell the user to connect it in the claude.ai connector settings;
+- if the goal really needs a shell command or a web request, do not try it: set the goal to "waiting" and ask the user to run it, with the exact command.
 Never print or store secrets. Write notes in the language the goal was written in.`
 }
 
