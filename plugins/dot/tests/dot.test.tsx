@@ -34,7 +34,7 @@ describe('dot', () => {
   test('/dot <goal> queues it and writes the instructions the rounds follow', async ($, on) => {
     const files = disk(on, {})
     const res = await $.command.run({ command: 'dot', args: 'review the open PRs of the team' } as never)
-    expect(JSON.stringify(res)).toContain('new goal')
+    expect(JSON.stringify(res)).toContain('is on it')
     expect(goalsOf(files).map(g => [g.title, g.status])).toEqual([['review the open PRs of the team', 'queued']])
     expect(files[`${DIR}/work.md`]).toContain('You are Vlad')
     expect(files[`${DIR}/rules.md`]).toContain('Hand off to the user')
@@ -178,22 +178,9 @@ describe('dot', () => {
     await $.command.run({ command: 'dot', args: '' } as never)
     const pane = await $.ui.mount({ plugin: 'dot', surface: 'desktop', component: 'Pane', requestId: 'dot', props: PANE })
     expect((await pane.find({ type: 'Markdown' }))?.props.text).toContain('https://x.slack.com/archives/C1')
-    await pane.post({ submit: 'any email?' }, { in: 'composer' })
+    await pane.input({ key: 'new-goal-1', text: 'any email?', kind: 'submit' })
     expect(goalsOf(files).at(-1)?.title).toBe('any email?')
     expect(runs).toEqual(['dot-work'])
-  })
-
-  test('the full-width field types, sends on Enter and clears', async ($, on) => {
-    const files = disk(on, { [`${DIR}/profile.json`]: JSON.stringify({ name: 'Vlad', scheduled: false, everyMinutes: 30 }) })
-    await $.command.run({ command: 'dot', args: '' } as never)
-    const pane = await $.ui.mount({ plugin: 'dot', surface: 'desktop', component: 'Pane', requestId: 'dot', props: PANE })
-    expect((await pane.find({ type: 'Client' }))?.props.width).toBe('100%')
-    await pane.pointer({ type: 'down', x: 1, y: 0, button: 'left' })
-    for (const key of ['o', 'i', 'x', 'backspace']) await pane.key({ key, in: 'composer' })
-    expect(await pane.find({ type: 'Text', text: /^oi/, in: 'composer' })).toBeDefined()
-    await pane.key({ key: 'return', in: 'composer' })
-    expect(goalsOf(files).at(-1)?.title).toBe('oi')
-    expect(await pane.find({ type: 'Text', text: /^oi/, in: 'composer' })).toBeUndefined()
   })
 
   test('splitLinks names known hosts and keeps the text clean', () => {

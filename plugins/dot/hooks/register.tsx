@@ -10,7 +10,7 @@ import { isOn, OFF_TEXT, parseState, statePath } from '../src/shared/toggle'
 import { barIsLive, sameChip, type Chip, type ChipPress } from '../src/shared/chip'
 import { DRACULA } from '../src/shared/theme'
 import { dotChip } from '../ui/chip'
-import { COMPOSER_KEY, DotPane, PaneError } from '../ui/pane'
+import { DotPane, PaneError } from '../ui/pane'
 
 const MOD = 'dot'
 const CHECK_MS = 5000
@@ -260,16 +260,8 @@ export const register: Register = (on, options) => {
       return { text: `Renamed to ${emoji ?? me.emoji} ${name}.` }
     }
     await changeGoals($, (list, now) => addGoal(list, args, now))
-    return { text: `${me.emoji} ${me.name} got a new goal: ${args}` }
-  })
-
-  on('ui.message', { component: 'Pane', requestId: PANE_ID, element: COMPOSER_KEY }, async ($, e) => {
-    const text = (e.data as { submit?: unknown } | null)?.submit
-    if (typeof text === 'string' && text.trim() !== '') {
-      await changeGoals($, (list, now) => addGoal(list, text.trim(), now))
-      await startSoon($)
-    }
-    return {}
+    await startSoon($)
+    return { text: `${me.emoji} ${me.name} is on it: ${args}` }
   })
 
   on('ui.close', async ($, e, next) => {
