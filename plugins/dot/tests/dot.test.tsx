@@ -177,11 +177,23 @@ describe('dot', () => {
     })
     await $.command.run({ command: 'dot', args: '' } as never)
     const pane = await $.ui.mount({ plugin: 'dot', surface: 'desktop', component: 'Pane', requestId: 'dot', props: PANE })
-    expect(await pane.find({ text: 'Two pending.' })).toBeDefined()
-    expect((await pane.find({ type: 'Link' }))?.props.href).toBe('https://x.slack.com/archives/C1')
-    await pane.input({ key: 'new-goal-1', text: 'any email?', kind: 'submit' })
+    expect((await pane.find({ type: 'Markdown' }))?.props.text).toContain('https://x.slack.com/archives/C1')
+    await pane.post({ submit: 'any email?' }, { in: 'composer' })
     expect(goalsOf(files).at(-1)?.title).toBe('any email?')
     expect(runs).toEqual(['dot-work'])
+  })
+
+  test('the full-width field types, sends on Enter and clears', async ($, on) => {
+    const files = disk(on, { [`${DIR}/profile.json`]: JSON.stringify({ name: 'Vlad', scheduled: false, everyMinutes: 30 }) })
+    await $.command.run({ command: 'dot', args: '' } as never)
+    const pane = await $.ui.mount({ plugin: 'dot', surface: 'desktop', component: 'Pane', requestId: 'dot', props: PANE })
+    expect((await pane.find({ type: 'Client' }))?.props.width).toBe('100%')
+    await pane.pointer({ type: 'down', x: 1, y: 0, button: 'left' })
+    for (const key of ['o', 'i', 'x', 'backspace']) await pane.key({ key, in: 'composer' })
+    expect(await pane.find({ type: 'Text', text: /^oi/, in: 'composer' })).toBeDefined()
+    await pane.key({ key: 'return', in: 'composer' })
+    expect(goalsOf(files).at(-1)?.title).toBe('oi')
+    expect(await pane.find({ type: 'Text', text: /^oi/, in: 'composer' })).toBeUndefined()
   })
 
   test('splitLinks names known hosts and keeps the text clean', () => {

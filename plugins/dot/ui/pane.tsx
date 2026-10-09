@@ -16,6 +16,7 @@ const BUBBLE_WIDTH = '82%'
 const SURFACE = '#21222c'
 const MINE = '#44475a'
 const QUESTION = '#3b3326'
+export const COMPOSER_KEY = 'composer'
 
 export const SUGGESTIONS = [
   { label: "Today's agenda", text: 'What is on my calendar today, and what should I prepare?' },
@@ -170,6 +171,17 @@ function Mine({ ui, id, text, meta }: { ui: Ui; id: string; text: string; meta?:
 
 function Reply({ ui, id, name, emoji, text, tone, background }: { ui: Ui; id: string; name: string; emoji: string; text: string; tone?: string; background?: string }) {
   const { Box, Text, Link } = ui
+  if ('Markdown' in ui && !tone) {
+    return (
+      <Box key={id} flexDirection="row" gap={1} alignItems="flex-start">
+        <Box flexShrink={0} width={3}><Text>{emoji}</Text></Box>
+        <Box width={BUBBLE_WIDTH} flexDirection="column" rowGap={0}>
+          <Text color={DRACULA.purple} bold>{name}</Text>
+          <ui.Markdown text={text} />
+        </Box>
+      </Box>
+    )
+  }
   const { body, links } = splitLinks(text)
   const lines = body.split('\n').filter(line => line.trim() !== '')
   return (
@@ -228,19 +240,23 @@ function Thread({ ui, goal, name, emoji, nextAt, running, onAnswer, onDone, onRe
   )
 }
 
-// Keyed by the goal count so the field comes back empty once a message lands
+// The field is a Client of its own so it spans the whole row; Enter posts the text back to the hooks module
 function Composer({ ui, name, count, onAdd }: { ui: Ui; name: string; count: number; onAdd: (title: string) => unknown }) {
-  if (!('Input' in ui)) return undefined
-  const { Box, Text, Button, Input } = ui
+  const { Box, Text, Button } = ui
   return (
     <Box flexDirection="column" rowGap={1}>
       <Box flexDirection="row" gap={2} flexWrap="wrap">
         {SUGGESTIONS.map(s => <Button key={`suggest-${s.label}`} label={s.label} plain dimColor onPress={() => onAdd(s.text)} />)}
       </Box>
-      <Box backgroundColor={MINE} paddingX={2} paddingY={1}>
-        <Input key={`new-goal-${count}`} placeholder={`Ask ${name} anything…`} submitLabel="send" autoFocus value=""
-          onSubmit={(text: string) => void onAdd(text)} />
-      </Box>
+      {'Client' in ui
+        ? <ui.Client key={COMPOSER_KEY} module="./composer.tsx" width="100%"
+            props={{ placeholder: `Ask ${name} anything…  (click here, type, Enter to send)`, background: MINE, text: DRACULA.foreground, muted: DRACULA.comment, accent: DRACULA.purple }} />
+        : 'Input' in ui && (
+          <Box backgroundColor={MINE} paddingX={2} paddingY={1}>
+            <ui.Input key={`new-goal-${count}`} placeholder={`Ask ${name} anything…`} submitLabel="send" autoFocus value=""
+              onSubmit={(text: string) => void onAdd(text)} />
+          </Box>
+        )}
       <Text color={DRACULA.comment}>{`${name} starts right away and keeps going in the background.`}</Text>
     </Box>
   )
