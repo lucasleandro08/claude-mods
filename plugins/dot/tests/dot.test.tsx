@@ -146,9 +146,10 @@ describe('dot', () => {
     await $.command.run({ command: 'dot', args: '' } as never)
     const pane = await $.ui.mount({ plugin: 'dot', surface: 'desktop', component: 'Pane', requestId: 'dot', props: PANE })
     const svg = await pane.find({ type: 'Svg' })
-    expect(svg?.props.width).toBe(64)
+    expect(svg?.props.width).toBe(72)
     expect(String(svg?.props.source)).toContain('class="bang"')
-    expect(await pane.find({ text: /Off. Turn it on/ })).toBeDefined()
+    expect(await pane.find({ text: /Vlad needs your answer/ })).toBeDefined()
+    expect(await pane.find({ type: "Button", key: "schedule" })).toBeDefined()
   })
 
   test('shows when the round runs and when the next one comes', async ($, on) => {
@@ -161,7 +162,7 @@ describe('dot', () => {
     await $.session.start({ source: 'startup', cwd: '/tmp' } as never).catch(() => undefined)
     await clock.advance(5000)
     const pane = await $.ui.mount({ plugin: 'dot', surface: 'desktop', component: 'Pane', requestId: 'dot', props: PANE })
-    expect(await pane.find({ text: /Working on “read the RFC” · since \d\d:\d\d/ })).toBeDefined()
+    expect(await pane.find({ text: /Vlad is working on “read the RFC”/ })).toBeDefined()
     expect(await pane.find({ type: 'Button', key: 'run-now' })).toBeUndefined()
   })
 
@@ -178,7 +179,8 @@ describe('dot', () => {
     await $.command.run({ command: 'dot', args: '' } as never)
     const pane = await $.ui.mount({ plugin: 'dot', surface: 'desktop', component: 'Pane', requestId: 'dot', props: PANE })
     expect((await pane.find({ type: 'Markdown' }))?.props.text).toContain('https://x.slack.com/archives/C1')
-    await pane.input({ key: 'new-goal-1', text: 'any email?', kind: 'submit' })
+    const field = (await pane.findAll({ type: 'Input' })).at(-1)
+    await pane.input({ key: String(field?.key), text: 'any email?', kind: 'submit' })
     expect(goalsOf(files).at(-1)?.title).toBe('any email?')
     expect(runs).toEqual(['dot-work'])
   })
@@ -245,6 +247,22 @@ describe('dot', () => {
     await pane.press({ key: 'seen' })
     expect(parseProfile(files[`${DIR}/profile.json`] ?? '').seenAt).toBeGreaterThan(9)
     expect(await pane.find({ text: /Vlad replied/ })).toBeUndefined()
+  })
+
+  test('while it waits on you, the main field answers that question', async ($, on) => {
+    const files = disk(on, {
+      [`${DIR}/profile.json`]: JSON.stringify({ name: 'Vlad', scheduled: false, everyMinutes: 30, seenAt: 1 }),
+      [`${DIR}/goals.json`]: JSON.stringify([{ id: 'a', title: 'gmail', status: 'waiting', notes: [], question: 'Archive?', createdAt: 1, updatedAt: 1 }]),
+    })
+    await $.command.run({ command: 'dot', args: '' } as never)
+    const pane = await $.ui.mount({ plugin: 'dot', surface: 'desktop', component: 'Pane', requestId: 'dot', props: PANE })
+    expect(await pane.find({ text: /needs your answer/ })).toBeDefined()
+    const field = (await pane.findAll({ type: 'Input' })).at(-1)
+    expect(field?.props.placeholder).toBe('Answer Vlad…')
+    await pane.input({ key: String(field?.key), text: 'pode continuar', kind: 'submit' })
+    expect(goalsOf(files).length).toBe(1)
+    expect(goalsOf(files)[0]?.notes.at(-1)).toBe('You: pode continuar')
+    expect(goalsOf(files)[0]?.status).toBe('queued')
   })
 
   test('writeToolsAllowed lists the allowed MCP write tools, not reads', () => {

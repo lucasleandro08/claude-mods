@@ -364,7 +364,9 @@ export const register: Register = (on, options) => {
           onToggleSettings={() => update($, showSettings, open => !open)}
           onSeen={() => markSeen($)}
           onAdd={async title => {
-            await changeGoals($, (list, now) => addGoal(list, title, now))
+            // While it waits on you, the main field answers that question instead of opening a new thread
+            const asking = (await read($, goals)).find(goal => goal.status === 'waiting')
+            await changeGoals($, (list, now) => (asking ? answerGoal(list, asking.id, title, now) : addGoal(list, title, now)))
             await startSoon($, true)
           }}
           onAnswer={async (id, answer) => {

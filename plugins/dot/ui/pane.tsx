@@ -7,7 +7,7 @@ import { DRACULA } from '../src/shared/theme'
 
 type Ui = Elements[RenderSurface]
 
-const AVATAR_PX = 64
+const BANNER_AVATAR_PX = 72
 const THREADS_SHOWN = 8
 const STUCK_MS = 10 * 60_000
 const BUBBLE_WIDTH = '82%'
@@ -63,10 +63,10 @@ function statusLine(profile: Profile, round: RoundStatus, now: number): { text: 
   return { text: `● Online · next round ${clock(nextRoundAt(profile.everyMinutes, now))}${last}`, color: DRACULA.purple }
 }
 
+// Conversation on top; the live status (avatar, banner) docks at the bottom next to the field you type in
 export function DotPane(props: DotPaneProps) {
   const { ui, profile, goals, round, now, notice } = props
   const { Box, Text, Button } = ui
-  const status = statusLine(profile, round, now)
   const threads = [...goals].sort((a, b) => a.createdAt - b.createdAt).slice(-THREADS_SHOWN)
   const canRun = profile.scheduled && !profile.paused && round.state !== 'running'
   const unread = new Set(unreadGoals(goals, profile.seenAt).map(goal => goal.id))
@@ -74,23 +74,12 @@ export function DotPane(props: DotPaneProps) {
   return (
     <Box flexDirection="column" backgroundColor={DRACULA.background} paddingX={2} paddingY={1} rowGap={1}>
       <Box flexDirection="row" gap={2} alignItems="center">
-        {'Svg' in ui
-          ? <ui.Svg source={avatarSvg(moodOf(profile, goals, round), AVATAR_PX)} alt={profile.name} width={AVATAR_PX} height={AVATAR_PX} />
-          : <Text color={DRACULA.purple}>{profile.emoji}</Text>}
-        <Box flexDirection="column" flexGrow={1} flexShrink={1} rowGap={0}>
-          <Text color={DRACULA.foreground} bold>{profile.name}</Text>
-          <Text color={status.color} wrap="wrap">{status.text}</Text>
-        </Box>
-        <Box flexDirection="row" gap={2} flexShrink={0} alignItems="center">
-          {!profile.scheduled && <Button key="schedule" label="Turn on" onPress={props.onSchedule} />}
-          {canRun && <Button key="run-now" label="Run now" plain dimColor onPress={props.onRunNow} />}
-          <Button key="settings" label={props.showSettings ? 'Close' : 'Settings'} plain dimColor onPress={props.onToggleSettings} />
-        </Box>
+        <Box flexGrow={1}><Text color={DRACULA.comment} bold>{`${profile.emoji} ${profile.name}`}</Text></Box>
+        {!profile.scheduled && <Button key="schedule" label="Turn on" onPress={props.onSchedule} />}
+        {canRun && <Button key="run-now" label="Run now" plain dimColor onPress={props.onRunNow} />}
+        <Button key="settings" label={props.showSettings ? 'Close' : 'Settings'} plain dimColor onPress={props.onToggleSettings} />
       </Box>
-
-      <Banner {...props} />
       {props.showSettings && <Settings {...props} />}
-      {notice && <Text color={NOTICE_COLOR[notice.tone]} wrap="wrap">{notice.text}</Text>}
 
       <Box flexDirection="column" rowGap={2} paddingY={1}>
         {threads.length === 0 && <Empty ui={ui} name={profile.name} />}
@@ -101,7 +90,9 @@ export function DotPane(props: DotPaneProps) {
         ))}
       </Box>
 
-      <Composer ui={ui} name={profile.name} count={goals.length} onAdd={props.onAdd} />
+      {notice && <Text color={NOTICE_COLOR[notice.tone]} wrap="wrap">{notice.text}</Text>}
+      <Banner {...props} />
+      <Composer ui={ui} name={profile.name} count={goals.reduce((n, goal) => n + 1 + goal.notes.length, 0)} answering={goals.some(goal => goal.status === 'waiting')} onAdd={props.onAdd} />
     </Box>
   )
 }
@@ -110,33 +101,41 @@ const BANNER = {
   waiting: { background: '#3b3326', color: DRACULA.orange },
   working: { background: '#1f3a2a', color: DRACULA.green },
   done: { background: '#2f2a45', color: DRACULA.purple },
+  idle: { background: SURFACE, color: DRACULA.comment },
 } as const
 
-// One line across the top that says what matters now: it needs you, it is working, or it has news
+// The live card above the field: the animated avatar and what matters now (it needs you, it is working, it has news)
 function Banner({ ui, profile, goals, round, now, onSeen }: DotPaneProps) {
   const { Box, Text, Button } = ui
   const asking = byStatus(goals).waiting[0]
   const unread = unreadGoals(goals, profile.seenAt)
   const running = round.state === 'running' && !profile.paused
-  const kind = asking ? 'waiting' : running ? 'working' : unread.length > 0 ? 'done' : undefined
-  if (!kind) return undefined
+  const kind = asking ? 'waiting' : running ? 'working' : unread.length > 0 ? 'done' : 'idle'
   const minutes = round.at > 0 ? Math.max(0, Math.round((now - round.at) / 60_000)) : 0
+  const idle = statusLine(profile, round, now)
   const title = kind === 'waiting'
     ? `⚠  ${profile.name} needs your answer`
     : kind === 'working'
       ? `●  ${profile.name} is working${round.goal ? ` on “${round.goal}”` : ''}`
-      : `✓  ${profile.name} replied${unread.length > 1 ? ` to ${unread.length} messages` : ` to “${unread[0]?.title ?? ''}”`}`
+      : kind === 'done'
+        ? `✓  ${profile.name} replied${unread.length > 1 ? ` to ${unread.length} messages` : ` to “${unread[0]?.title ?? ''}”`}`
+        : `${profile.name} is all caught up`
   const detail = kind === 'waiting'
-    ? (asking?.question || asking?.title || '')
+    ? `${asking?.question || asking?.title || ''} Reply in the conversation above.`
     : kind === 'working'
-      ? `Started ${clock(round.at)}${minutes > 0 ? ` · ${minutes} min so far` : ''}. Replies show up below as it finishes.`
-      : `Last at ${clock(Math.max(...unread.map(goal => goal.updatedAt)))}. Read it below.`
+      ? `Started ${clock(round.at)}${minutes > 0 ? ` · ${minutes} min so far` : ''}. Replies show up above as it finishes.`
+      : kind === 'done'
+        ? `Last at ${clock(Math.max(...unread.map(goal => goal.updatedAt)))}. Read it above.`
+        : idle.text.replace(/^[●○]\s*/, '')
   const style = BANNER[kind]
   return (
     <Box flexDirection="row" backgroundColor={style.background} paddingX={2} paddingY={1} gap={2} alignItems="center">
+      {'Svg' in ui
+        ? <ui.Svg source={avatarSvg(moodOf(profile, goals, round), BANNER_AVATAR_PX)} alt={profile.name} width={BANNER_AVATAR_PX} height={BANNER_AVATAR_PX} />
+        : <Text>{profile.emoji}</Text>}
       <Box flexDirection="column" flexGrow={1} flexShrink={1} rowGap={0}>
         <Text color={style.color} bold wrap="wrap">{title}</Text>
-        <Text color={DRACULA.foreground} wrap="wrap">{detail}</Text>
+        <Text color={kind === 'idle' ? DRACULA.comment : DRACULA.foreground} wrap="wrap">{detail}</Text>
       </Box>
       {kind === 'done' && <Button key="seen" label="Got it" onPress={onSeen} />}
     </Box>
@@ -285,7 +284,7 @@ function Thread({ ui, goal, name, emoji, nextAt, running, unread, onAnswer, onDo
 }
 
 // Keyed by the goal count so the field comes back empty once a message lands
-function Composer({ ui, name, count, onAdd }: { ui: Ui; name: string; count: number; onAdd: (title: string) => unknown }) {
+function Composer({ ui, name, count, answering, onAdd }: { ui: Ui; name: string; count: number; answering: boolean; onAdd: (title: string) => unknown }) {
   const { Box, Text, Button } = ui
   return (
     <Box flexDirection="column" rowGap={1}>
@@ -294,7 +293,7 @@ function Composer({ ui, name, count, onAdd }: { ui: Ui; name: string; count: num
       </Box>
       {'Input' in ui && (
         <Box backgroundColor={MINE} paddingX={2} paddingY={1}>
-          <ui.Input key={`new-goal-${count}`} placeholder={`Ask ${name}…`} submitLabel="send" autoFocus value=""
+          <ui.Input key={`new-goal-${count}-${answering ? 'a' : 'n'}`} placeholder={answering ? `Answer ${name}…` : `Ask ${name}…`} submitLabel="send" autoFocus value=""
             onSubmit={(text: string) => void onAdd(text)} />
         </Box>
       )}
