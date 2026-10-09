@@ -98,6 +98,17 @@ export function DotPane(props: DotPaneProps) {
   )
 }
 
+const EXCERPT = 280
+
+// The newest reply you haven't seen, cut short, so the card answers without scrolling
+function latestReply(unread: Goal[]) {
+  const goal = [...unread].sort((a, b) => b.updatedAt - a.updatedAt)[0]
+  const note = [...(goal?.notes ?? [])].reverse().find(n => !n.startsWith('You: ')) ?? ''
+  const { body } = splitLinks(note)
+  const flat = body.replace(/\s+/g, ' ').trim()
+  return `${clock(goal?.updatedAt ?? 0)} · ${flat.length > EXCERPT ? `${flat.slice(0, EXCERPT)}… (full reply above)` : flat}`
+}
+
 const BANNER = {
   waiting: { background: '#3b3326', color: DRACULA.orange },
   working: { background: '#1f3a2a', color: DRACULA.green },
@@ -126,7 +137,7 @@ function Banner({ ui, profile, goals, round, now, onSeen }: DotPaneProps) {
     : kind === 'working'
       ? `Started ${clock(round.at)}${minutes > 0 ? ` · ${minutes} min so far` : ''}. Replies show up above as it finishes.`
       : kind === 'done'
-        ? `Last at ${clock(Math.max(...unread.map(goal => goal.updatedAt)))}. Read it above.`
+        ? latestReply(unread)
         : idle.text.replace(/^[●○]\s*/, '')
   const style = BANNER[kind]
   return (
