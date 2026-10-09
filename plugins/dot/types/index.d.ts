@@ -27,6 +27,7 @@ declare module 'claude-code' {
       round: RoundStatus
       isOpen: boolean
       notice: { tone: 'ok' | 'error' | 'info'; text: string } | null
+      showSettings: boolean
     }
   }
 }

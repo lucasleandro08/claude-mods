@@ -224,7 +224,7 @@ Nobody can approve anything during this round: any call that asks for approval h
 - connected apps (Slack, email, calendar…): use their read tools freely (search, read, list, get): those are pre-approved. Load them with ToolSearch first when they are deferred. Never call a tool that sends, posts, drafts, schedules, reacts, creates, updates or deletes: that is "Ask first";
 - when the app isn't connected (ToolSearch finds no tool for it), say so in the note and tell the user to connect it in the claude.ai connector settings;
 - if the goal really needs a shell command or a web request, do not try it: set the goal to "waiting" and ask the user to run it, with the exact command.
-Never print or store secrets. Write notes in the language the goal was written in.`
+Never print or store secrets. Write notes in the user's language (see the memory file), else the goal's language. Keep notes short and scannable: lead with the answer, then a few short lines or a numbered list.`
 }
 
 export function briefingPrompt(name: string, paths: DotPaths) {
@@ -260,4 +260,30 @@ export function activityOf(profile: Profile, goals: Goal[]) {
   const next = active[active.length - 1]
   if (next) return { status: profile.scheduled ? 'up next' : 'queued', detail: next.title }
   return { status: 'idle', detail: 'No goals yet' }
+}
+
+export type NoteLink = { href: string; label: string }
+
+const LINK_NAMES: [RegExp, string][] = [
+  [/slack\.com/, 'Slack'], [/mail\.google\.com/, 'Gmail'], [/meet\.google\.com/, 'Meet'], [/calendar\.google\.com/, 'Calendar'],
+  [/docs\.google\.com/, 'Docs'], [/github\.com/, 'GitHub'], [/notion\.so/, 'Notion'],
+]
+
+// Pulls URLs out of a note so the text reads clean and the links become chips under it
+export function splitLinks(text: string): { body: string; links: NoteLink[] } {
+  const links: NoteLink[] = []
+  const body = text
+    .replace(/\(?(https?:\/\/[^\s)]+)\)?/g, (_, raw: string) => {
+      const trail = /[.,;:!?]+$/.exec(raw)?.[0] ?? ''
+      const href = raw.slice(0, raw.length - trail.length)
+      const host = href.replace(/^https?:\/\//, '').split('/')[0] ?? href
+      const name = LINK_NAMES.find(([pattern]) => pattern.test(host))?.[1] ?? host.replace(/^www\./, '')
+      const same = links.filter(link => link.label.startsWith(name)).length
+      links.push({ href, label: same === 0 ? name : `${name} ${same + 1}` })
+      return trail
+    })
+    .replace(/[ \t]+([,.;:])/g, '$1')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim()
+  return { body, links }
 }

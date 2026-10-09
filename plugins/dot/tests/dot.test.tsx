@@ -2,7 +2,7 @@ import type { On } from 'claude-code'
 import { describe, expect, mock, test } from 'claude-code/testing'
 
 import { avatarSvg } from '../src/avatar'
-import { activityOf, addGoal, answerGoal, briefingCron, everyMinutesCron, moodOf, newlyWaiting, parseGoals, parseProfile, stampChanged, parseRound, stampRound, nextRoundAt, clock } from '../src/dot'
+import { activityOf, addGoal, answerGoal, briefingCron, everyMinutesCron, moodOf, newlyWaiting, parseGoals, parseProfile, stampChanged, parseRound, stampRound, nextRoundAt, clock, splitLinks } from '../src/dot'
 
 const HOME = '/home/dev'
 const DIR = `${HOME}/.claude-dot`
@@ -54,11 +54,11 @@ describe('dot', () => {
       const pane = await $.ui.mount({ plugin: 'dot', surface, component: 'Pane', requestId: 'dot', props: PANE })
       expect(await pane.find({ text: 'Vlad' })).toBeDefined()
       expect(await pane.find({ text: 'Can I push to staging?' })).toBeDefined()
-      expect(await pane.find({ text: 'Vlad needs your answer to continue.' })).toBeDefined()
+      expect(await pane.find({ text: 'Vlad needs your answer' })).toBeDefined()
       expect(await pane.find({ text: 'halfway' })).toBeDefined()
-      expect(await pane.find({ text: 'Done, but Vlad left no reply.' })).toBeDefined()
+      expect(await pane.find({ text: 'Done, but Vlad left no reply' })).toBeDefined()
       expect(await pane.find({ text: 'read the RFC' })).toBeDefined()
-      expect(await pane.find({ text: 'Vlad is on it. More in the next round.' })).toBeDefined()
+      expect(await pane.find({ text: 'Vlad continues in the next round · ' + clock(nextRoundAt(30, Date.now())) })).toBeDefined()
       if (surface === 'desktop') expect((await pane.find({ type: 'Svg' }))?.props.source).toContain('<svg')
       expect(JSON.stringify(await pane.drawn()).length < 100_000).toBe(true)
 
@@ -146,9 +146,9 @@ describe('dot', () => {
     await $.command.run({ command: 'dot', args: '' } as never)
     const pane = await $.ui.mount({ plugin: 'dot', surface: 'desktop', component: 'Pane', requestId: 'dot', props: PANE })
     const svg = await pane.find({ type: 'Svg' })
-    expect(svg?.props.width).toBe(88)
+    expect(svg?.props.width).toBe(64)
     expect(String(svg?.props.source)).toContain('class="bang"')
-    expect(await pane.find({ text: /Background work is off/ })).toBeDefined()
+    expect(await pane.find({ text: /Off. Turn it on/ })).toBeDefined()
   })
 
   test('shows when the round runs and when the next one comes', async ($, on) => {
@@ -161,8 +161,34 @@ describe('dot', () => {
     await $.session.start({ source: 'startup', cwd: '/tmp' } as never).catch(() => undefined)
     await clock.advance(5000)
     const pane = await $.ui.mount({ plugin: 'dot', surface: 'desktop', component: 'Pane', requestId: 'dot', props: PANE })
-    expect(await pane.find({ text: /Working now since \d\d:\d\d on "read the RFC"/ })).toBeDefined()
+    expect(await pane.find({ text: /Working on “read the RFC” · since \d\d:\d\d/ })).toBeDefined()
     expect(await pane.find({ type: 'Button', key: 'run-now' })).toBeUndefined()
+  })
+
+  test('a new message starts a round right away and links become chips', async ($, on) => {
+    const files = disk(on, {
+      [`${DIR}/profile.json`]: JSON.stringify({ name: 'Vlad', scheduled: true, everyMinutes: 30 }),
+      [`${DIR}/goals.json`]: JSON.stringify([{ id: 'a', title: 'slack?', status: 'done', notes: ['Two pending (https://x.slack.com/archives/C1).'], question: '', createdAt: 1, updatedAt: 2 }]),
+    })
+    const runs: string[] = []
+    on('tool.call', { tool: 'mcp__scheduled-tasks__run_scheduled_task' }, ($, e) => {
+      runs.push((e as unknown as { taskId: string }).taskId)
+      return { result: {} as never }
+    })
+    await $.command.run({ command: 'dot', args: '' } as never)
+    const pane = await $.ui.mount({ plugin: 'dot', surface: 'desktop', component: 'Pane', requestId: 'dot', props: PANE })
+    expect(await pane.find({ text: 'Two pending.' })).toBeDefined()
+    expect((await pane.find({ type: 'Link' }))?.props.href).toBe('https://x.slack.com/archives/C1')
+    await pane.input({ key: 'new-goal-1', text: 'any email?', kind: 'submit' })
+    expect(goalsOf(files).at(-1)?.title).toBe('any email?')
+    expect(runs).toEqual(['dot-work'])
+  })
+
+  test('splitLinks names known hosts and keeps the text clean', () => {
+    expect(splitLinks('See (https://mail.google.com/x) and https://meet.google.com/a, ok')).toEqual({
+      body: 'See and, ok',
+      links: [{ href: 'https://mail.google.com/x', label: 'Gmail' }, { href: 'https://meet.google.com/a', label: 'Meet' }],
+    })
   })
 
   test('changing the round interval reschedules the work task', async ($, on) => {
@@ -175,6 +201,7 @@ describe('dot', () => {
     })
     await $.command.run({ command: 'dot', args: '' } as never)
     const pane = await $.ui.mount({ plugin: 'dot', surface: 'desktop', component: 'Pane', requestId: 'dot', props: PANE })
+    await pane.press({ key: 'settings' })
     await pane.select({ key: 'every', value: '60' })
     expect(calls).toContain('dot-work 0 */1 * * *')
     expect(parseProfile(files[`${DIR}/profile.json`] ?? '').everyMinutes).toBe(60)

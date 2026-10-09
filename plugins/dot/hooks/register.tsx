@@ -48,6 +48,7 @@ const goals = atom({ plugin: 'dot', key: 'goals' } as const, [])
 const round = atom({ plugin: 'dot', key: 'round' } as const, IDLE_ROUND)
 const isOpen = atom({ plugin: 'dot', key: 'isOpen' } as const, false)
 const notice = atom({ plugin: 'dot', key: 'notice' } as const, null)
+const showSettings = atom({ plugin: 'dot', key: 'showSettings' } as const, false)
 type Settings = { everyMinutes: number; briefing: string; openOnStart: boolean }
 
 function readSettings(options: PluginOptions): Settings {
@@ -195,6 +196,13 @@ async function runNow($: EngineInterface) {
     : `A round is already running or waiting for your approval. Open the "${me.name} · work" session in the sidebar.`)
 }
 
+// A new message or reply starts a round at once instead of waiting for the schedule; a round already running picks it up
+async function startSoon($: EngineInterface) {
+  const me = await read($, profile)
+  if (!me.scheduled || me.paused || (await read($, round)).state === 'running') return
+  await callTool($, 'mcp__scheduled-tasks__run_scheduled_task', { taskId: WORK_TASK })
+}
+
 async function openPane($: EngineInterface) {
   await ensureFiles($)
   const opened = await $.ui.open({ id: PANE_ID, title: (await read($, profile)).name })
@@ -294,8 +302,16 @@ export const register: Register = (on, options) => {
           now={Date.now()}
           notice={await read($, notice)}
           dotDir={(await paths($)).dir}
-          onAdd={title => changeGoals($, (list, now) => addGoal(list, title, now))}
-          onAnswer={(id, answer) => changeGoals($, (list, now) => answerGoal(list, id, answer, now))}
+          showSettings={await read($, showSettings)}
+          onToggleSettings={() => update($, showSettings, open => !open)}
+          onAdd={async title => {
+            await changeGoals($, (list, now) => addGoal(list, title, now))
+            await startSoon($)
+          }}
+          onAnswer={async (id, answer) => {
+            await changeGoals($, (list, now) => answerGoal(list, id, answer, now))
+            await startSoon($)
+          }}
           onDone={id => changeGoals($, (list, now) => setStatus(list, id, 'done', now))}
           onRemove={id => changeGoals($, list => removeGoal(list, id))}
           onPause={() => togglePause($)}
