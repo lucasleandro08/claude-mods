@@ -2,7 +2,7 @@ import type { On } from 'claude-code'
 import { describe, expect, mock, test } from 'claude-code/testing'
 
 import { avatarSvg } from '../src/avatar'
-import { activityOf, addGoal, answerGoal, briefingCron, everyMinutesCron, moodOf, newlyWaiting, parseGoals, parseProfile } from '../src/dot'
+import { activityOf, addGoal, answerGoal, briefingCron, everyMinutesCron, moodOf, newlyWaiting, parseGoals, parseProfile, stampChanged } from '../src/dot'
 
 const HOME = '/home/dev'
 const DIR = `${HOME}/.claude/dot`
@@ -203,6 +203,17 @@ describe('dot state', () => {
     expect(newlyWaiting(queued, waiting).length).toBe(1)
     expect(newlyWaiting(waiting, waiting).length).toBe(0)
     expect(answerGoal(waiting, waiting[0]?.id ?? '', 'markdown', 3000)[0]).toMatchObject({ status: 'queued', question: '' })
+  })
+
+  test('changed goals get stamped, untouched ones keep their time', () => {
+    const before = addGoal([], 'a', 1000)
+    const id = before[0]?.id ?? ''
+    const edited = before.map(g => ({ ...g, status: 'done' as const, notes: ['found it'] }))
+    expect(stampChanged(before, edited, 5000).goals[0]?.updatedAt).toBe(5000)
+    expect(stampChanged(before, before, 5000).changed).toBe(false)
+    const created = [...before, { id: 'new', title: 'b', status: 'done' as const, notes: [], question: '', createdAt: 0, updatedAt: 0 }]
+    expect(stampChanged(before, created, 7000).goals.find(g => g.id === 'new')?.createdAt).toBe(7000)
+    expect(id).not.toBe('')
   })
 
   test('bad files fall back to safe defaults', () => {

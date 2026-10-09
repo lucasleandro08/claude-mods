@@ -4,7 +4,7 @@ import type { EngineInterface, PluginOptions, Register } from 'claude-code'
 import type { Goal, Profile } from '../types'
 import {
   addGoal, answerGoal, BRIEFING_TASK, briefingCron, briefingPrompt, DEFAULT_PROFILE, DEFAULT_RULES, dotPaths, everyMinutesCron,
-  newlyWaiting, parseGoals, parseProfile, removeGoal, serialize, setStatus, taskPointer, WORK_TASK, workPrompt,
+  newlyWaiting, parseGoals, stampChanged, parseProfile, removeGoal, serialize, setStatus, taskPointer, WORK_TASK, workPrompt,
 } from '../src/dot'
 import { isOn, OFF_TEXT, parseState, statePath } from '../src/shared/toggle'
 import { barIsLive, sameChip, type Chip, type ChipPress } from '../src/shared/chip'
@@ -86,8 +86,10 @@ async function sync($: EngineInterface) {
   if (!(await isActive($))) return publishChip($)
   const p = await paths($)
   const nextProfile = parseProfile((await readText($, p.profile)) ?? '')
-  const nextGoals = parseGoals((await readText($, p.goals)) ?? '[]')
   const before = await read($, goals)
+  const stamped = stampChanged(before, parseGoals((await readText($, p.goals)) ?? '[]'), Date.now())
+  const nextGoals = stamped.goals
+  if (stamped.changed) await $.fs.write(p.goals, serialize(nextGoals))
   await update($, profile, prev => (JSON.stringify(prev) === JSON.stringify(nextProfile) ? prev : nextProfile))
   await update($, goals, prev => (JSON.stringify(prev) === JSON.stringify(nextGoals) ? prev : nextGoals))
   await publishChip($)

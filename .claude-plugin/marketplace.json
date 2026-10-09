@@ -106,7 +106,7 @@
       "name": "dot",
       "source": "./plugins/dot",
       "description": "An always-on assistant with a name and a face: give it goals, and it keeps working on them in background rounds, asks before risky actions, briefs you in the morning and pings you when it needs a decision.",
-      "version": "1.3.0",
+      "version": "1.3.1",
       "homepage": "https://github.com/lucasleandro08/claude-mods",
       "repository": "https://github.com/lucasleandro08/claude-mods"
     }

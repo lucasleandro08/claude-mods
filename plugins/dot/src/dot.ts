@@ -95,6 +95,20 @@ export function byStatus(goals: Goal[]) {
   }
 }
 
+// Rounds edit goals without touching timestamps; a goal whose content changed gets stamped here
+export function stampChanged(before: Goal[], after: Goal[], now: number): { goals: Goal[]; changed: boolean } {
+  let changed = false
+  const goals = after.map(goal => {
+    const old = before.find(g => g.id === goal.id)
+    const moved = old !== undefined && (old.status !== goal.status || old.notes.length !== goal.notes.length || old.question !== goal.question)
+    const fresh = goal.createdAt === 0
+    if (!moved && !fresh) return goal
+    changed = true
+    return { ...goal, createdAt: goal.createdAt || now, updatedAt: now }
+  })
+  return { goals, changed }
+}
+
 export function newlyWaiting(before: Goal[], after: Goal[]): Goal[] {
   const was = new Set(before.filter(g => g.status === 'waiting').map(g => g.id))
   return after.filter(g => g.status === 'waiting' && !was.has(g.id))
@@ -147,11 +161,11 @@ export function workPrompt(name: string, paths: DotPaths) {
    - append one short note to "notes" with what you did and what is next;
    - status "done" when the goal is complete;
    - status "waiting" with a one-sentence "question" when you need a decision, an approval or a hand-off, then send a desktop notification (PushNotification) saying "${name}: " and the question;
-   - otherwise keep "working";
-   - set "updatedAt" to the current time in milliseconds.
+   - otherwise keep "working".
+   Leave "createdAt" and "updatedAt" as they are: the dot stamps them. Edit the file with the Edit or Write tool, not the shell.
 6. Add to ${paths.memory} anything durable you learned about the user's preferences or setup (short bullets, no secrets).
 
-Never print or store secrets. Write notes in the language the goal was written in.`
+Use the shell only when the goal itself needs a command, never for bookkeeping. Never print or store secrets. Write notes in the language the goal was written in.`
 }
 
 export function briefingPrompt(name: string, paths: DotPaths) {
@@ -161,7 +175,7 @@ export function briefingPrompt(name: string, paths: DotPaths) {
 2. Read ${paths.goals}, ${paths.rules} and ${paths.memory}.
 3. Look around read-only, following the rules file: goals in progress, what is waiting on the user, and anything in the connected tools that is worth their attention today (open pull requests and CI, failing builds, things the goals depend on). Do not change anything.
 4. Send one desktop notification (PushNotification, under 200 characters) with the most important thing, starting with "${name}: ".
-5. Append the full briefing (a few bullets) as a note to a goal titled "Briefings" in ${paths.goals}, creating it with status "done" if missing, and set its "updatedAt" to now in milliseconds.
+5. Append the full briefing (a few bullets) as a note to a goal titled "Briefings" in ${paths.goals}, creating it with status "done" if missing (any unique "id"). Do not touch timestamps; edit the file with the Edit or Write tool.
 
 Write in the language of the user's goals.`
 }
