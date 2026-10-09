@@ -1,0 +1,36 @@
+{
+  "name": "dot",
+  "displayName": "Dot",
+  "version": "1.0.0",
+  "description": "An always-on assistant with a name and a face: give it goals, and it keeps working on them in background rounds, asks before risky actions, briefs you in the morning and pings you when it needs a decision.",
+  "author": {
+    "name": "Lucas Leandro",
+    "url": "https://github.com/lucasleandro08"
+  },
+  "homepage": "https://github.com/lucasleandro08/claude-mods",
+  "repository": "https://github.com/lucasleandro08/claude-mods",
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "keywords": [
+    "claude-code",
+    "claude-mod",
+    "agent",
+    "assistant",
+    "scheduled",
+    "dracula"
+  ],
+  "userConfig": {
+    "workEveryMinutes": {
+      "type": "number",
+      "title": "Work round interval (minutes)",
+      "description": "How often a background round runs. A round with no queued goal stops right away.",
+      "default": 30
+    },
+    "briefingTime": {
+      "type": "string",
+      "title": "Morning briefing (HH:MM, weekdays)",
+      "description": "Local time of the weekday briefing. Leave empty for none.",
+      "default": "09:00"
+    }
+  }
+}

@@ -10,7 +10,7 @@
       "name": "mod-manager",
       "source": "./plugins/mod-manager",
       "description": "A Dracula-themed pane to install the Dracula mods and turn them on and off. Every other mod ships off; this one lists them all and remembers your choice across sessions.",
-      "version": "2.5.0",
+      "version": "2.6.0",
       "homepage": "https://github.com/lucasleandro08/claude-mods",
       "repository": "https://github.com/lucasleandro08/claude-mods"
     },
@@ -99,6 +99,14 @@
       "source": "./plugins/worktrees",
       "description": "A chip with your git worktrees and a pane that shows each one's branch, uncommitted changes and pull request, opens it in the app's Terminal and removes the clean ones whose branch is merged.",
       "version": "1.1.1",
+      "homepage": "https://github.com/lucasleandro08/claude-mods",
+      "repository": "https://github.com/lucasleandro08/claude-mods"
+    },
+    {
+      "name": "dot",
+      "source": "./plugins/dot",
+      "description": "An always-on assistant with a name and a face: give it goals, and it keeps working on them in background rounds, asks before risky actions, briefs you in the morning and pings you when it needs a decision.",
+      "version": "1.0.0",
       "homepage": "https://github.com/lucasleandro08/claude-mods",
       "repository": "https://github.com/lucasleandro08/claude-mods"
     }

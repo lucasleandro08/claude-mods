@@ -19,7 +19,7 @@ The marketplace is named `dracula-mods`. Open `/mods` (or click the `⚙ Mods` c
 
 | Mod | What it does | Commands |
 | --- | --- | --- |
-| **mod-manager** | The only mod on by default: a pane that lists every mod with an on/off switch and an **Install** button for the ones not installed yet (it runs `claude plugin install`, or puts the `/plugin install` command in your prompt when the CLI is not found), plus a `⚙ Mods · n/11` chip above the prompt. After an install it runs `/reload-plugins`, so the new mod shows up in the session you are in; **↻ Reload** does the same by hand. | `/mods`, `/mods reload` |
+| **mod-manager** | The only mod on by default: a pane that lists every mod with an on/off switch and an **Install** button for the ones not installed yet (it runs `claude plugin install`, or puts the `/plugin install` command in your prompt when the CLI is not found), plus a `⚙ Mods · n/12` chip above the prompt. After an install it runs `/reload-plugins`, so the new mod shows up in the session you are in; **↻ Reload** does the same by hand. | `/mods`, `/mods reload` |
 | **live-diff** | A pane with the diff of every `Edit` and `Write` Claude makes: file navigator with `M`/`A` status, `+/-` counts, line numbers and red/green rows. A `Δ Diff` chip above the prompt reopens it. | `/diff`, `/diff-clear` |
 | **kube-pane** | A `⎈ context` chip above the prompt (red on production) and a pods pane: context and namespace pickers, filter, pages, unhealthy pods first, and a `⌘ Shell` button that opens `kubectl exec` in the app's Terminal, with a container picker for multi-container pods. Switching context only affects Claude's session: your kubeconfig is never written. | `/pods` |
 | **pr-pane** | Your open pull requests grouped by repo, with CI status, the Codex review state and whether each PR already reached your integration branch. A `⑂ PRs` chip flags failing CI and Codex findings. Needs the [GitHub CLI](https://cli.github.com). | `/prs` |
@@ -31,6 +31,7 @@ The marketplace is named `dracula-mods`. Open `/mods` (or click the `⚙ Mods` c
 | **docker-pane** | A `🐳 Docker · n up` chip (unhealthy and stale counts) and a pane grouped by compose project: ports, health, **Start/Stop/Restart** by container name (never by port), **Logs** and compose **Recreate** in the app's Terminal. Flags containers created before your last `git checkout` in the session's repo, the usual cause of a test failing for no reason. | `/docker` |
 | **deploy-watch** | Watches AWS CodeBuild projects: a `🚀` chip with the last build, a warning (chip and toast) when a `git push` to a project's branch started no build after a few minutes, and a pane with recent builds, their logs in the Terminal and a **Start build** button that asks first. | `/deploys` |
 | **worktrees** | A `🌳 n worktrees` chip and a pane with every worktree of the session's repo and of the repos under your roots: branch, uncommitted changes, PR state, a **Terminal** button, and **Remove** (asks first, never `--force`) for clean worktrees whose branch is merged. | `/worktrees` |
+| **dot** | An always-on assistant with a name and a face (Vlad 🧛 by default, rename it with `/dot name`). Give it goals in its pane or with `/dot <goal>`; background rounds (the desktop app's scheduled tasks, every 30 min) pick one goal at a time and work on it, following `~/.claude/dot/rules.md`: act alone, ask first, or hand off to you. When it needs a decision it notifies you and the goal shows under *Waiting on you*, where you answer it. A weekday morning briefing sums up what needs you. Its memory is a file you can read and edit. Rounds run while the desktop app is open. | `/dot`, `/dot <goal>`, `/dot on \| pause \| resume \| run` |
 
 ### Options
 
@@ -48,6 +49,7 @@ The marketplace is named `dracula-mods`. Open `/mods` (or click the `⚙ Mods` c
 | docker-pane | Refresh interval · docker path | 60 s (10 s while open) · PATH |
 | deploy-watch | Projects (`name=branch`, comma-separated) · AWS profile · region · poll interval · missing build warning · production pattern · aws path | none · CLI default · profile's · 60 s · 3 min · `prod` · PATH |
 | worktrees | Roots (folders holding your repos) · refresh interval · gh path | session repo only · 5 min · PATH |
+| dot | Work round interval · morning briefing (weekdays) | 30 min · `09:00` |
 
 With the mod-manager on, every mod's chip is drawn in **one bar** above the prompt: a tile per mod, its name dimmed over its value (like a usage band), wrapping between tiles with a blank row between lines; each mod publishes its chip as state and the bar sends presses back to it. Without the manager, or if it stops, each mod draws its own row again. Either way the band keeps whatever other mods draw beneath it.
 

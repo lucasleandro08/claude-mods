@@ -26,5 +26,6 @@ declare module 'claude-code' {
     'docker-pane': { chip: Chip | null }
     'deploy-watch': { chip: Chip | null }
     worktrees: { chip: Chip | null }
+    dot: { chip: Chip | null }
   }
 }

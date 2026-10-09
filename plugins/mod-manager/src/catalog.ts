@@ -13,6 +13,7 @@ export const CATALOG = [
   { name: 'docker-pane', title: 'Docker Pane', summary: 'Containers by compose project, restart by name, stale warning' },
   { name: 'deploy-watch', title: 'Deploy Watch', summary: 'CodeBuild builds, logs and a warning when a push builds nothing' },
   { name: 'worktrees', title: 'Worktrees', summary: 'Your git worktrees with changes and PRs; remove merged ones' },
+  { name: 'dot', title: 'Dot', summary: 'An always-on assistant that works on your goals in the background' },
 ] as const
 
 export const REPO = 'lucasleandro08/claude-mods'
