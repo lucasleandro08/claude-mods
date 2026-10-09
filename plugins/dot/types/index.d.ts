@@ -29,6 +29,7 @@ declare module 'claude-code' {
       notice: { tone: 'ok' | 'error' | 'info'; text: string } | null
       showSettings: boolean
       chained: number
+      memory: { bullets: number; chars: number }
     }
   }
 }

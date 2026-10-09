@@ -8,7 +8,7 @@ export const IDLE_ROUND: RoundStatus = { state: 'idle', goal: '', summary: '', a
 export const ROUND_CHOICES = [15, 30, 60, 120] as const
 export const BRIEFING_CHOICES = ['off', '08:00', '09:00', '10:00', '18:00'] as const
 
-export type DotPaths = { dir: string; profile: string; goals: string; round: string; memory: string; rules: string; work: string; briefing: string; sessions: string; globalMemory: string }
+export type DotPaths = { dir: string; profile: string; goals: string; round: string; memory: string; rules: string; work: string; briefing: string; sessions: string; archive: string; globalMemory: string }
 
 export function dotPaths(home: string): DotPaths {
   const dir = `${home}/${DOT_DIR}`
@@ -22,6 +22,7 @@ export function dotPaths(home: string): DotPaths {
     work: `${dir}/work.md`,
     briefing: `${dir}/briefing.md`,
     sessions: `${dir}/sessions.md`,
+    archive: `${dir}/archive.json`,
     globalMemory: `${home}/.claude/projects/${home.replace(/[/.]/g, '-')}/memory/MEMORY.md`,
   }
 }
@@ -184,6 +185,22 @@ export function allowRules(): string[] {
   return [`Read(~/${DOT_DIR}/**)`, `Edit(~/${DOT_DIR}/**)`]
 }
 
+export const MEMORY_LIMIT = 30
+export const SESSIONS_LIMIT = 20
+export const ROUND_BUDGET = 25
+export const DONE_KEPT = 10
+
+// Done goals past the newest few leave goals.json, so each round reads a small file
+export function splitArchive(goals: Goal[], keep = DONE_KEPT): { kept: Goal[]; archived: Goal[] } {
+  const done = goals.filter(goal => goal.status === 'done').sort((a, b) => b.updatedAt - a.updatedAt)
+  const old = new Set(done.slice(keep).map(goal => goal.id))
+  return { kept: goals.filter(goal => !old.has(goal.id)), archived: goals.filter(goal => old.has(goal.id)) }
+}
+
+export function memoryStats(text: string) {
+  return { bullets: text.split('\n').filter(line => /^\s*[-*] /.test(line)).length, chars: text.length }
+}
+
 export const DEFAULT_RULES = `# Rules
 
 Each action falls in one level. When unsure, use the stricter one.
@@ -219,15 +236,17 @@ export function workPrompt(name: string, paths: DotPaths, allowedTools: readonly
    - status "waiting" with a one-sentence "question" when you need a decision, an approval or a hand-off, then send a desktop notification (PushNotification) saying "${name}: " and the question;
    - otherwise keep "working".
    Leave "createdAt" and "updatedAt" as they are: the dot stamps them. Edit the file with the Edit or Write tool, not the shell.
-6. Add to ${paths.memory} anything durable you learned about the user's preferences or setup (short bullets, no secrets).
+6. Rewrite ${paths.memory} as a whole (not just append), at most ${MEMORY_LIMIT} short bullets, no secrets: keep only durable facts about the user, their setup, people, IDs and what works; add what you learned this round; merge duplicates; drop anything stale or contradicted by newer facts or by these instructions. Never put task progress there (batches done, counts, what's next): that belongs in the goal's note.
 7. Last, write ${paths.round} as {"state": "idle", "goal": "<that goal's title>", "summary": "<one short line of what this round did>"}. If there was no goal, leave ${paths.round} untouched.
+
+Keep each round small so you stay focused: once you've made about ${ROUND_BUDGET} tool calls, or read a lot of output, stop where you are. Write the note with what you did, what's left and the exact next step, keep the goal "working", and finish the round; the next round starts fresh from that note.
 
 Nobody can approve anything during this round: any call that asks for approval hangs it forever. So:
 - never use the shell (Bash) at all. Use only Read, Grep and Glob, which work anywhere under the home folder without approval;
 - for git history, Read <repository>/.git/logs/HEAD: each line is "old new author <email> timestamp timezone<TAB>action: message", the last line is the latest commit; the current branch is in <repository>/.git/HEAD;
 - connected apps (Slack, email, calendar…): their read tools (search, read, list, get) are pre-approved. Load tools with ToolSearch first when they are deferred;
 - the only other tools that run without approval are these (any tool not listed here or above hangs the round, so never call it): ${allowedTools.length > 0 ? allowedTools.join(', ') : 'none'}. When an approved action needs a tool that is not listed, say in the note exactly which tool name the user should add to permissions.allow in ~/.claude/settings.json;
-- your other Claude Code sessions: list_sessions, get_session, list_events and search_session_transcripts (mcp__ccd_session_mgmt__*) show what each one is doing; read them freely. Keep ${paths.sessions} as your map of them: one line per session you looked at or used, "- <title> (<session id>): <repo/branch>, <what it is for>, <last status, date>"; update a line when you learn more and drop sessions that no longer exist. To pick who should do a piece of work, match the goal against that map (title, repo, topic) before messaging anyone. When no session fits, you cannot create one: tell the user in the note to open a new Claude Code session in <folder> and give them the exact first message to paste. send_message (or SendMessage) delivers a message into one as a user turn, so that session acts on it: only send when the goal itself asks you to, or the user approved that exact message in the thread, and say in the note which session you messaged and what;
+- your other Claude Code sessions: list_sessions, get_session, list_events and search_session_transcripts (mcp__ccd_session_mgmt__*) show what each one is doing; read them freely. Keep ${paths.sessions} as your map of them (at most ${SESSIONS_LIMIT} lines, newest first): one line per session you looked at or used, "- <title> (<session id>): <repo/branch>, <what it is for>, <last status, date>"; update a line when you learn more and drop sessions that no longer exist. To pick who should do a piece of work, match the goal against that map (title, repo, topic) before messaging anyone. When no session fits, you cannot create one: tell the user in the note to open a new Claude Code session in <folder> and give them the exact first message to paste. send_message (or SendMessage) delivers a message into one as a user turn, so that session acts on it: only send when the goal itself asks you to, or the user approved that exact message in the thread, and say in the note which session you messaged and what;
 - sending a message on the user's behalf (Slack, email): only when the goal itself asks you to send it, or the user approved it in the thread. Write it in the user's voice and language, short, and put the exact text you sent and where (channel or person, with the link) in your note;
 - when the app isn't connected (ToolSearch finds no tool for it), say so in the note and tell the user to connect it in the claude.ai connector settings;
 - if the goal really needs a shell command or a web request, do not try it: set the goal to "waiting" and ask the user to run it, with the exact command.

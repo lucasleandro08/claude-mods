@@ -3,7 +3,7 @@ import type { EngineInterface, PluginOptions, Register } from 'claude-code'
 
 import type { Goal, Profile } from '../types'
 import {
-  addGoal, allowRules, answerGoal, finishedRunIds, markStuck, runningRunIds, writeToolsAllowed, BRIEFING_TASK, briefingCron, briefingPrompt, DEFAULT_PROFILE, DEFAULT_RULES, dotPaths, everyMinutesCron,
+  addGoal, allowRules, answerGoal, finishedRunIds, memoryStats, splitArchive, markStuck, runningRunIds, writeToolsAllowed, BRIEFING_TASK, briefingCron, briefingPrompt, DEFAULT_PROFILE, DEFAULT_RULES, dotPaths, everyMinutesCron,
   IDLE_ROUND, newlyAnswered, newlyWaiting, parseGoals, parseRound, stampChanged, stampRound, parseProfile, removeGoal, serialize, setStatus, taskPointer, WORK_TASK, workPrompt,
 } from '../src/dot'
 import { isOn, OFF_TEXT, parseState, statePath } from '../src/shared/toggle'
@@ -52,6 +52,7 @@ const showSettings = atom({ plugin: 'dot', key: 'showSettings' } as const, false
 // Rounds chained back to back while work is left; capped so a goal that never finishes can't loop forever
 const chained = atom({ plugin: 'dot', key: 'chained' } as const, 0)
 const MAX_CHAINED = 8
+const memory = atom({ plugin: 'dot', key: 'memory' } as const, { bullets: 0, chars: 0 })
 type Settings = { everyMinutes: number; briefing: string; openOnStart: boolean; autoStopMinutes: number }
 
 function readSettings(options: PluginOptions): Settings {
@@ -100,8 +101,21 @@ async function sync($: EngineInterface) {
   const nextProfile = parseProfile((await readText($, p.profile)) ?? '')
   const before = await read($, goals)
   const stamped = stampChanged(before, parseGoals((await readText($, p.goals)) ?? '[]'), Date.now())
-  const nextGoals = stamped.goals
-  if (stamped.changed) await $.fs.write(p.goals, serialize(nextGoals))
+  let nextGoals = stamped.goals
+  let goalsChanged = stamped.changed
+  // Only between rounds, so a round never loses a write it is making to goals.json
+  if ((await read($, round)).state !== 'running') {
+    const { kept, archived } = splitArchive(nextGoals)
+    if (archived.length > 0) {
+      const stored = parseGoals((await readText($, p.archive)) ?? '[]')
+      await $.fs.write(p.archive, serialize([...stored, ...archived]))
+      nextGoals = kept
+      goalsChanged = true
+    }
+  }
+  if (goalsChanged) await $.fs.write(p.goals, serialize(nextGoals))
+  const stats = memoryStats((await readText($, p.memory)) ?? '')
+  await update($, memory, prev => (prev.bullets === stats.bullets && prev.chars === stats.chars ? prev : stats))
   await update($, profile, prev => (JSON.stringify(prev) === JSON.stringify(nextProfile) ? prev : nextProfile))
   await update($, goals, prev => (JSON.stringify(prev) === JSON.stringify(nextGoals) ? prev : nextGoals))
   const stampedRound = stampRound(await read($, round), parseRound((await readText($, p.round)) ?? ''), await nowMs($))
@@ -371,6 +385,7 @@ export const register: Register = (on, options) => {
           notice={await read($, notice)}
           dotDir={(await paths($)).dir}
           showSettings={await read($, showSettings)}
+          memory={await read($, memory)}
           onToggleSettings={() => update($, showSettings, open => !open)}
           onSeen={() => markSeen($)}
           onAdd={async title => {

@@ -2,7 +2,7 @@ import type { On } from 'claude-code'
 import { describe, expect, mock, test } from 'claude-code/testing'
 
 import { avatarSvg } from '../src/avatar'
-import { activityOf, addGoal, answerGoal, briefingCron, everyMinutesCron, moodOf, newlyWaiting, parseGoals, parseProfile, stampChanged, parseRound, stampRound, nextRoundAt, clock, splitLinks, writeToolsAllowed, runningRunIds, markStuck, finishedRunIds } from '../src/dot'
+import { activityOf, addGoal, answerGoal, briefingCron, everyMinutesCron, moodOf, newlyWaiting, parseGoals, parseProfile, stampChanged, parseRound, stampRound, nextRoundAt, clock, splitLinks, writeToolsAllowed, runningRunIds, markStuck, finishedRunIds, splitArchive, memoryStats } from '../src/dot'
 
 const HOME = '/home/dev'
 const DIR = `${HOME}/.claude-dot`
@@ -264,6 +264,16 @@ describe('dot', () => {
     expect(goalsOf(files).length).toBe(1)
     expect(goalsOf(files)[0]?.notes.at(-1)).toBe('You: pode continuar')
     expect(goalsOf(files)[0]?.status).toBe('queued')
+  })
+
+  test('splitArchive keeps open goals and the newest done ones; memoryStats counts bullets', () => {
+    const goal = (id: string, status: 'done' | 'working', updatedAt: number) => ({ id, title: id, status, notes: [], question: '', createdAt: 1, updatedAt })
+    const goals = [goal('w', 'working', 1), ...Array.from({ length: 12 }, (_, i) => goal(`d${i}`, 'done', i + 10))]
+    const { kept, archived } = splitArchive(goals)
+    expect(kept.length).toBe(11)
+    expect(kept.some(g => g.id === 'w')).toBe(true)
+    expect(archived.map(g => g.id).sort()).toEqual(['d0', 'd1'])
+    expect(memoryStats('# Memory\n- a\n- b\ntext')).toEqual({ bullets: 2, chars: 21 })
   })
 
   test('writeToolsAllowed lists the allowed MCP write tools, not reads', () => {

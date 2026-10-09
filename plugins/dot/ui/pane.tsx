@@ -2,7 +2,7 @@ import type { Elements, RenderSurface } from 'claude-code'
 
 import type { Goal, Profile, RoundStatus } from '../types'
 import { avatarSvg } from '../src/avatar'
-import { BRIEFING_CHOICES, byStatus, clock, moodOf, nextRoundAt, ROUND_CHOICES, splitLinks, unreadGoals } from '../src/dot'
+import { BRIEFING_CHOICES, MEMORY_LIMIT, byStatus, clock, moodOf, nextRoundAt, ROUND_CHOICES, splitLinks, unreadGoals } from '../src/dot'
 import { DRACULA } from '../src/shared/theme'
 
 type Ui = Elements[RenderSurface]
@@ -34,6 +34,7 @@ export type DotPaneProps = {
   notice: Notice | null
   dotDir: string
   showSettings: boolean
+  memory: { bullets: number; chars: number }
   onAdd: (title: string) => unknown
   onAnswer: (id: string, answer: string) => unknown
   onDone: (id: string) => unknown
@@ -164,7 +165,7 @@ function Empty({ ui, name }: { ui: Ui; name: string }) {
   )
 }
 
-function Settings({ ui, profile, dotDir, onEvery, onBriefing, onPause }: DotPaneProps) {
+function Settings({ ui, profile, dotDir, memory, onEvery, onBriefing, onPause }: DotPaneProps) {
   const { Box, Text, Button } = ui
   return (
     <Box flexDirection="column" rowGap={1} backgroundColor={SURFACE} paddingX={2} paddingY={1}>
@@ -185,6 +186,14 @@ function Settings({ ui, profile, dotDir, onEvery, onBriefing, onPause }: DotPane
             : <Button key={`every-${m}`} label={m < 60 ? `${m}m` : `${m / 60}h`} dimColor plain onPress={() => onEvery(m)} />)}
         </Box>
       )}
+      <Box flexDirection="row" gap={2} alignItems="center" flexWrap="wrap">
+        <Text color={memory.bullets > MEMORY_LIMIT ? DRACULA.orange : DRACULA.comment}>
+          {`Memory: ${memory.bullets}/${MEMORY_LIMIT} facts · ${(memory.chars / 1000).toFixed(1)}k chars`}
+        </Text>
+        {'Link' in ui && <ui.Link key="open-memory" href={`file://${dotDir}/memory.md`} label="Open memory ↗" />}
+        {'Link' in ui && <ui.Link key="open-sessions" href={`file://${dotDir}/sessions.md`} label="Sessions map ↗" />}
+        {'Link' in ui && <ui.Link key="open-rules" href={`file://${dotDir}/rules.md`} label="Rules ↗" />}
+      </Box>
       <Box flexDirection="row" gap={2} alignItems="center">
         {profile.scheduled && <Button key="pause" label={profile.paused ? 'Resume rounds' : 'Pause rounds'} plain dimColor onPress={onPause} />}
         <Box flexGrow={1} flexShrink={1}><Text color={DRACULA.comment} wrap="truncate-start">{`Files: ${dotDir}`}</Text></Box>
