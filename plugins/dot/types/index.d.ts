@@ -13,7 +13,7 @@ export type Goal = {
   createdAt: number
   updatedAt: number
 }
-export type Profile = { name: string; emoji: string; paused: boolean; scheduled: boolean; everyMinutes: number; briefing: string }
+export type Profile = { name: string; emoji: string; paused: boolean; scheduled: boolean; everyMinutes: number; briefing: string; seenAt: number }
 export type RoundStatus = { state: 'idle' | 'running'; goal: string; summary: string; at: number }
 
 declare module 'claude-code' {

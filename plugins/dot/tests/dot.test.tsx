@@ -136,7 +136,7 @@ describe('dot', () => {
     await $.session.start({ source: 'startup', cwd: '/tmp' } as never).catch(() => undefined)
     await clock.advance(5000)
     const band = await $.ui.mount({ plugin: 'dot', surface: 'desktop', component: 'AbovePrompt', props: BAND })
-    expect((await band.find({ type: 'Button', key: 'open-dot' }))?.props.label).toBe('Vlad · 1 waiting on you')
+    expect((await band.find({ type: 'Button', key: 'open-dot' }))?.props.label).toBe('Vlad · ⚠ needs you (1)')
     expect(await band.find({ type: 'Svg' })).toBeUndefined()
     expect(await band.find({ text: 'beneath' })).toBeDefined()
   })
@@ -234,6 +234,19 @@ describe('dot', () => {
     expect(markStuck(goals, 't', 10, 5)[0]?.status).toBe('waiting')
   })
 
+  test('the banner says when it needs you, and Got it clears a new reply', async ($, on) => {
+    const files = disk(on, {
+      [`${DIR}/profile.json`]: JSON.stringify({ name: 'Vlad', scheduled: true, everyMinutes: 30, seenAt: 1 }),
+      [`${DIR}/goals.json`]: JSON.stringify([{ id: 'a', title: 'inbox', status: 'done', notes: ['all clear'], question: '', createdAt: 1, updatedAt: 9 }]),
+    })
+    await $.command.run({ command: 'dot', args: '' } as never)
+    const pane = await $.ui.mount({ plugin: 'dot', surface: 'desktop', component: 'Pane', requestId: 'dot', props: PANE })
+    expect(await pane.find({ text: /Vlad replied to “inbox”/ })).toBeDefined()
+    await pane.press({ key: 'seen' })
+    expect(parseProfile(files[`${DIR}/profile.json`] ?? '').seenAt).toBeGreaterThan(9)
+    expect(await pane.find({ text: /Vlad replied/ })).toBeUndefined()
+  })
+
   test('writeToolsAllowed lists the allowed MCP write tools, not reads', () => {
     const settings = JSON.stringify({ permissions: { allow: ['Read(~/.claude-dot/**)', 'mcp__g__search_threads', 'mcp__g__label_thread', 'mcp__g__create_label', 'mcp__Claude_Browser__navigate'] } })
     expect(writeToolsAllowed(settings)).toEqual(['mcp__g__label_thread', 'mcp__g__create_label'])
@@ -288,7 +301,7 @@ describe('dot pane on start', () => {
 
 describe('dot avatar', () => {
   test('each mood draws its own face and effects', () => {
-    expect(avatarSvg('working')).toContain('class="ring"')
+    expect(avatarSvg('working')).toContain('class="spin"')
     expect(avatarSvg('waiting')).toContain('class="bang"')
     expect(avatarSvg('paused')).toContain('class="zz"')
     expect(avatarSvg('idle')).toContain('class="bat"')
@@ -300,7 +313,11 @@ describe('dot avatar', () => {
     const g = (status: 'queued' | 'working' | 'waiting' | 'done', notes: string[] = []) => ({ id: status, title: `t-${status}`, status, notes, question: '', createdAt: 1, updatedAt: 1 })
     expect(moodOf(profile, [])).toBe('idle')
     expect(moodOf(profile, [g('working')])).toBe('working')
-    expect(moodOf(profile, [g('working'), g('waiting')])).toBe('waiting')
+    const idle = { state: 'idle' as const, goal: '', summary: '', at: 0 }
+    expect(moodOf(profile, [g('working'), g('waiting')], idle)).toBe('waiting')
+    expect(moodOf(profile, [g('waiting')], { ...idle, state: 'running' })).toBe('working')
+    expect(moodOf({ ...profile, seenAt: 0 }, [g('done', ['answer'])], idle)).toBe('done')
+    expect(moodOf({ ...profile, seenAt: 5 }, [g('done', ['answer'])], idle)).toBe('idle')
     expect(moodOf({ ...profile, paused: true }, [g('working')])).toBe('paused')
     expect(activityOf(profile, [g('working', ['read 2 files'])])).toEqual({ status: 'working', detail: 't-working · read 2 files' })
     expect(activityOf(profile, [g('queued')])).toEqual({ status: 'up next', detail: 't-queued' })

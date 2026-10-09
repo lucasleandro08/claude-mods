@@ -2,7 +2,7 @@ import type { Elements, RenderSurface } from 'claude-code'
 
 import type { Goal, Profile, RoundStatus } from '../types'
 import { avatarSvg } from '../src/avatar'
-import { BRIEFING_CHOICES, clock, moodOf, nextRoundAt, ROUND_CHOICES, splitLinks } from '../src/dot'
+import { BRIEFING_CHOICES, byStatus, clock, moodOf, nextRoundAt, ROUND_CHOICES, splitLinks, unreadGoals } from '../src/dot'
 import { DRACULA } from '../src/shared/theme'
 
 type Ui = Elements[RenderSurface]
@@ -44,6 +44,7 @@ export type DotPaneProps = {
   onEvery: (minutes: number) => unknown
   onBriefing: (time: string) => unknown
   onToggleSettings: () => unknown
+  onSeen: () => unknown
 }
 
 const NOTICE_COLOR = { ok: DRACULA.green, error: DRACULA.orange, info: DRACULA.cyan } as const
@@ -68,12 +69,13 @@ export function DotPane(props: DotPaneProps) {
   const status = statusLine(profile, round, now)
   const threads = [...goals].sort((a, b) => a.createdAt - b.createdAt).slice(-THREADS_SHOWN)
   const canRun = profile.scheduled && !profile.paused && round.state !== 'running'
+  const unread = new Set(unreadGoals(goals, profile.seenAt).map(goal => goal.id))
 
   return (
     <Box flexDirection="column" backgroundColor={DRACULA.background} paddingX={2} paddingY={1} rowGap={1}>
       <Box flexDirection="row" gap={2} alignItems="center">
         {'Svg' in ui
-          ? <ui.Svg source={avatarSvg(moodOf(profile, goals), AVATAR_PX)} alt={profile.name} width={AVATAR_PX} height={AVATAR_PX} />
+          ? <ui.Svg source={avatarSvg(moodOf(profile, goals, round), AVATAR_PX)} alt={profile.name} width={AVATAR_PX} height={AVATAR_PX} />
           : <Text color={DRACULA.purple}>{profile.emoji}</Text>}
         <Box flexDirection="column" flexGrow={1} flexShrink={1} rowGap={0}>
           <Text color={DRACULA.foreground} bold>{profile.name}</Text>
@@ -86,19 +88,57 @@ export function DotPane(props: DotPaneProps) {
         </Box>
       </Box>
 
+      <Banner {...props} />
       {props.showSettings && <Settings {...props} />}
       {notice && <Text color={NOTICE_COLOR[notice.tone]} wrap="wrap">{notice.text}</Text>}
 
       <Box flexDirection="column" rowGap={2} paddingY={1}>
         {threads.length === 0 && <Empty ui={ui} name={profile.name} />}
         {threads.map(goal => (
-          <Thread ui={ui} goal={goal} name={profile.name} emoji={profile.emoji} nextAt={clock(nextRoundAt(profile.everyMinutes, now))}
+          <Thread ui={ui} goal={goal} name={profile.name} unread={unread.has(goal.id)} emoji={profile.emoji} nextAt={clock(nextRoundAt(profile.everyMinutes, now))}
             running={round.state === 'running' && round.goal === goal.title}
             onAnswer={props.onAnswer} onDone={props.onDone} onRemove={props.onRemove} />
         ))}
       </Box>
 
       <Composer ui={ui} name={profile.name} count={goals.length} onAdd={props.onAdd} />
+    </Box>
+  )
+}
+
+const BANNER = {
+  waiting: { background: '#3b3326', color: DRACULA.orange },
+  working: { background: '#1f3a2a', color: DRACULA.green },
+  done: { background: '#2f2a45', color: DRACULA.purple },
+} as const
+
+// One line across the top that says what matters now: it needs you, it is working, or it has news
+function Banner({ ui, profile, goals, round, now, onSeen }: DotPaneProps) {
+  const { Box, Text, Button } = ui
+  const asking = byStatus(goals).waiting[0]
+  const unread = unreadGoals(goals, profile.seenAt)
+  const running = round.state === 'running' && !profile.paused
+  const kind = asking ? 'waiting' : running ? 'working' : unread.length > 0 ? 'done' : undefined
+  if (!kind) return undefined
+  const minutes = round.at > 0 ? Math.max(0, Math.round((now - round.at) / 60_000)) : 0
+  const title = kind === 'waiting'
+    ? `⚠  ${profile.name} needs your answer`
+    : kind === 'working'
+      ? `●  ${profile.name} is working${round.goal ? ` on “${round.goal}”` : ''}`
+      : `✓  ${profile.name} replied${unread.length > 1 ? ` to ${unread.length} messages` : ` to “${unread[0]?.title ?? ''}”`}`
+  const detail = kind === 'waiting'
+    ? (asking?.question || asking?.title || '')
+    : kind === 'working'
+      ? `Started ${clock(round.at)}${minutes > 0 ? ` · ${minutes} min so far` : ''}. Replies show up below as it finishes.`
+      : `Last at ${clock(Math.max(...unread.map(goal => goal.updatedAt)))}. Read it below.`
+  const style = BANNER[kind]
+  return (
+    <Box flexDirection="row" backgroundColor={style.background} paddingX={2} paddingY={1} gap={2} alignItems="center">
+      <Box flexDirection="column" flexGrow={1} flexShrink={1} rowGap={0}>
+        <Text color={style.color} bold wrap="wrap">{title}</Text>
+        <Text color={DRACULA.foreground} wrap="wrap">{detail}</Text>
+      </Box>
+      {kind === 'done' && <Button key="seen" label="Got it" onPress={onSeen} />}
     </Box>
   )
 }
@@ -149,6 +189,7 @@ type ThreadProps = {
   emoji: string
   nextAt: string
   running: boolean
+  unread: boolean
   onAnswer: (id: string, answer: string) => unknown
   onDone: (id: string) => unknown
   onRemove: (id: string) => unknown
@@ -200,11 +241,13 @@ function Reply({ ui, id, name, emoji, text, tone, background }: { ui: Ui; id: st
 }
 
 // One goal as a short conversation; its actions show only while you hover it
-function Thread({ ui, goal, name, emoji, nextAt, running, onAnswer, onDone, onRemove }: ThreadProps) {
+function Thread({ ui, goal, name, emoji, nextAt, running, unread, onAnswer, onDone, onRemove }: ThreadProps) {
   const { Box, Text, Button } = ui
   const replies = goal.notes.filter(note => !note.startsWith('You: ')).length
   const state = goal.status === 'done'
     ? (replies === 0 ? { text: `Done, but ${name} left no reply`, color: DRACULA.orange } : { text: `✓ Done · ${clock(goal.updatedAt)}`, color: DRACULA.comment })
+    : unread && goal.status === 'working'
+      ? { text: `✓ New reply · ${clock(goal.updatedAt)} · ${name} continues next round`, color: DRACULA.purple }
     : {
         queued: { text: `${name} starts on this in the next round · ${nextAt}`, color: DRACULA.comment },
         working: { text: running ? `${name} is working on this…` : `${name} continues in the next round · ${nextAt}`, color: DRACULA.green },
@@ -229,7 +272,9 @@ function Thread({ ui, goal, name, emoji, nextAt, running, onAnswer, onDone, onRe
         </Box>
       )}
       <Box key={`actions-${goal.id}`} flexDirection="row" gap={2} paddingLeft={4} alignItems="center">
-        <Box flexGrow={1} flexShrink={1}><Text color={state.color} wrap="wrap">{state.text}</Text></Box>
+        <Box flexGrow={1} flexShrink={1}>
+          <Text color={unread ? DRACULA.purple : state.color} bold={unread} wrap="wrap">{unread && goal.status === 'done' ? `✓ New reply · ${clock(goal.updatedAt)}` : state.text}</Text>
+        </Box>
         <Box display="none" hover={{ display: 'flex' }} flexDirection="row" gap={2} flexShrink={0}>
           {goal.status !== 'done' && <Button key={`done-${goal.id}`} label="Mark done" dimColor plain onPress={() => onDone(goal.id)} />}
           <Button key={`remove-${goal.id}`} label="Delete" dimColor plain onPress={() => onRemove(goal.id)} />

@@ -1,4 +1,4 @@
-export type Mood = 'working' | 'waiting' | 'idle' | 'paused'
+export type Mood = 'working' | 'waiting' | 'done' | 'idle' | 'paused'
 
 // A chibi vampire drawn in the Dracula palette; each mood swaps the face and the effects around it
 const PALETTE = {
@@ -20,6 +20,11 @@ const PALETTE = {
 
 const STYLE = `
 .bob{animation:bob 2.6s ease-in-out infinite;transform-origin:50% 60%}
+.busy .bob{animation:busy .9s ease-in-out infinite}
+.spin{animation:spin 2.4s linear infinite;transform-box:fill-box;transform-origin:center}
+.glow{animation:glow 1.4s ease-in-out infinite}
+.pop{animation:pop 1.6s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+.tilt{animation:tilt 1.2s ease-in-out infinite;transform-box:fill-box;transform-origin:50% 100%}
 .cape{animation:cape 3.2s ease-in-out infinite;transform-box:fill-box;transform-origin:50% 0}
 .eye{animation:blink 4.2s infinite;transform-box:fill-box;transform-origin:center}
 .blush{animation:blush 2.6s ease-in-out infinite}
@@ -31,12 +36,17 @@ const STYLE = `
 .bat{animation:bat .35s ease-in-out infinite alternate;transform-box:fill-box;transform-origin:center}
 .fly{animation:fly 6s ease-in-out infinite}
 @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+@keyframes busy{0%,100%{transform:translateY(0) rotate(0)}25%{transform:translateY(-6px) rotate(-3deg)}75%{transform:translateY(-6px) rotate(3deg)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes glow{0%,100%{opacity:.35}50%{opacity:1}}
+@keyframes pop{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}
+@keyframes tilt{0%,100%{transform:rotate(-4deg)}50%{transform:rotate(4deg)}}
 @keyframes cape{0%,100%{transform:skewX(0) scaleX(1)}50%{transform:skewX(-3deg) scaleX(1.03)}}
 @keyframes blink{0%,93%,100%{transform:scaleY(1)}96%{transform:scaleY(.08)}}
 @keyframes blush{0%,100%{opacity:.35}50%{opacity:.6}}
 @keyframes ring{0%{transform:scale(.85);opacity:.55}100%{transform:scale(1.25);opacity:0}}
 @keyframes spark{0%,100%{transform:scale(.4);opacity:0}50%{transform:scale(1);opacity:1}}
-@keyframes bang{0%,100%{transform:rotate(-8deg)}50%{transform:rotate(8deg)}}
+@keyframes bang{0%,100%{transform:rotate(-14deg) scale(1)}50%{transform:rotate(14deg) scale(1.2)}}
 @keyframes zz{0%{opacity:0;transform:translate(0,0)}30%{opacity:1}100%{opacity:0;transform:translate(6px,-12px)}}
 @keyframes bat{from{transform:scaleY(1)}to{transform:scaleY(.55)}}
 @keyframes fly{0%,100%{transform:translate(0,0)}50%{transform:translate(-6px,-4px)}}
@@ -64,23 +74,34 @@ function mouth(mood: Mood) {
     <path d="M51.2 67.6 l1.3 3.4 1.3-3 z" fill="#fff" stroke="${p.ink}" stroke-width=".5" stroke-linejoin="round"/>`
 }
 
+const GLOW: Record<Mood, string> = { working: PALETTE.green, waiting: PALETTE.orange, done: PALETTE.purple, idle: '', paused: '' }
+
+// A pulsing border in the mood's colour, so the state reads at a glance even when the avatar is small
+function frameGlow(mood: Mood) {
+  const color = GLOW[mood]
+  return color ? `<rect class="glow" x="2" y="2" width="106" height="106" rx="20" fill="none" stroke="${color}" stroke-width="4"/>` : ''
+}
+
 function effects(mood: Mood, frame: number) {
-  const pulse = [0.9, 1, 1.1, 1][frame % 4] ?? 1
   const twinkle = (i: number) => ((frame + i) % 4 === 0 ? 0.25 : 1)
   const p = PALETTE
   if (mood === 'working') {
-    return `<circle class="ring" cx="55" cy="60" r="${(38 * pulse).toFixed(1)}" fill="none" stroke="${p.purple}" stroke-width="1.6" opacity="${(1.3 - pulse).toFixed(2)}"/>
-      <path class="spark" opacity="${twinkle(0)}" d="M16 30 l1.5 4 4 1.5 -4 1.5 -1.5 4 -1.5-4 -4-1.5 4-1.5z" fill="${p.gold}"/>
-      <path class="spark s2" opacity="${twinkle(1)}" d="M94 24 l1.2 3 3 1.2 -3 1.2 -1.2 3 -1.2-3 -3-1.2 3-1.2z" fill="${p.purple}"/>
-      <path class="spark s3" opacity="${twinkle(2)}" d="M98 72 l1 2.6 2.6 1 -2.6 1 -1 2.6 -1-2.6 -2.6-1 2.6-1z" fill="${p.green}"/>`
+    return `<g class="spin"><circle cx="55" cy="58" r="44" fill="none" stroke="${p.green}" stroke-width="3" stroke-dasharray="10 14" stroke-linecap="round" opacity=".85"/></g>
+      <path class="spark" opacity="${twinkle(0)}" d="M14 28 l2.2 6 6 2.2 -6 2.2 -2.2 6 -2.2-6 -6-2.2 6-2.2z" fill="${p.gold}"/>
+      <path class="spark s2" opacity="${twinkle(1)}" d="M95 20 l1.8 4.6 4.6 1.8 -4.6 1.8 -1.8 4.6 -1.8-4.6 -4.6-1.8 4.6-1.8z" fill="${p.purple}"/>
+      <path class="spark s3" opacity="${twinkle(2)}" d="M98 74 l1.6 4 4 1.6 -4 1.6 -1.6 4 -1.6-4 -4-1.6 4-1.6z" fill="${p.green}"/>`
   }
   if (mood === 'waiting') {
-    return `<g transform="rotate(${[-6, 0, 6, 0][frame % 4]} 92 32)"><g class="bang"><circle cx="92" cy="22" r="10" fill="${p.orange}"/>
-      <rect x="90.6" y="15" width="2.8" height="8" rx="1.4" fill="${p.ink}"/><circle cx="92" cy="27" r="1.6" fill="${p.ink}"/></g></g>`
+    return `<g class="bang"><circle cx="90" cy="22" r="15" fill="${p.orange}"/>
+      <rect x="88" y="12" width="4" height="12" rx="2" fill="${p.ink}"/><circle cx="90" cy="29" r="2.4" fill="${p.ink}"/></g>`
+  }
+  if (mood === 'done') {
+    return `<g class="pop"><circle cx="90" cy="22" r="14" fill="${p.green}"/>
+      <path d="M83 22 l5 5 9-10" stroke="${p.ink}" stroke-width="3.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>`
   }
   if (mood === 'paused') {
-    return `<text class="zz" x="84" y="30" font-family="system-ui,sans-serif" font-size="11" font-weight="600" fill="${p.purple}">z</text>
-      <text class="zz z2" x="91" y="22" font-family="system-ui,sans-serif" font-size="8" font-weight="600" fill="${p.purple}">z</text>`
+    return `<text class="zz" x="84" y="30" font-family="system-ui,sans-serif" font-size="13" font-weight="700" fill="${p.purple}">z</text>
+      <text class="zz z2" x="92" y="20" font-family="system-ui,sans-serif" font-size="10" font-weight="700" fill="${p.purple}">z</text>`
   }
   return `<g class="fly"><g class="bat" transform="translate(90 26)">
     <path d="M0 0 q-6-6-12-2 q4 1 4 5 q3-3 8-3z M0 0 q6-6 12-2 q-4 1-4 5 q-3-3-8-3z" fill="#6272a4"/>
@@ -97,8 +118,9 @@ export function avatarSvg(mood: Mood, size = 96, frame = 0) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 110 110">
 <style>${STYLE}</style>
 <rect width="110" height="110" rx="22" fill="${p.ink}"/>
+${frameGlow(mood)}
 ${effects(mood, frame)}
-<g transform="translate(0 ${lift})"><g class="bob">
+<g transform="translate(0 ${lift})" class="${mood === 'working' ? 'busy' : ''}"><g class="bob">
   <path class="cape" d="M22 76 Q55 64 88 76 L98 110 L12 110 Z" fill="${p.capeOut}"/>
   <path d="M27 52 Q22 70 34 80 L46 74 Z M83 52 Q88 70 76 80 L64 74 Z" fill="${p.collar}"/>
   <path d="M40 76 Q55 70 70 76 L74 110 L36 110 Z" fill="${p.ink}"/>

@@ -4,7 +4,7 @@ import type { EngineInterface, PluginOptions, Register } from 'claude-code'
 import type { Goal, Profile } from '../types'
 import {
   addGoal, allowRules, answerGoal, markStuck, runningRunIds, writeToolsAllowed, BRIEFING_TASK, briefingCron, briefingPrompt, DEFAULT_PROFILE, DEFAULT_RULES, dotPaths, everyMinutesCron,
-  IDLE_ROUND, newlyWaiting, parseGoals, parseRound, stampChanged, stampRound, parseProfile, removeGoal, serialize, setStatus, taskPointer, WORK_TASK, workPrompt,
+  IDLE_ROUND, newlyAnswered, newlyWaiting, parseGoals, parseRound, stampChanged, stampRound, parseProfile, removeGoal, serialize, setStatus, taskPointer, WORK_TASK, workPrompt,
 } from '../src/dot'
 import { isOn, OFF_TEXT, parseState, statePath } from '../src/shared/toggle'
 import { barIsLive, sameChip, type Chip, type ChipPress } from '../src/shared/chip'
@@ -77,7 +77,8 @@ async function ensureFiles($: EngineInterface, settings?: Settings) {
   const current = stored === undefined && settings
     ? { ...parseProfile(''), everyMinutes: settings.everyMinutes, briefing: briefingCron(settings.briefing) ? settings.briefing : '' }
     : parseProfile(stored ?? '')
-  if ((await readText($, p.profile)) === undefined) await $.fs.write(p.profile, serialize(current))
+  // Replies from before this version count as read, so the first load doesn't flag everything as new
+  if (stored === undefined || !stored.includes('"seenAt"')) await $.fs.write(p.profile, serialize({ ...current, seenAt: current.seenAt || Date.now() }))
   if ((await readText($, p.goals)) === undefined) await $.fs.write(p.goals, serialize([]))
   if ((await readText($, p.memory)) === undefined) await $.fs.write(p.memory, '# Memory\n')
   if ((await readText($, p.rules)) === undefined) await $.fs.write(p.rules, DEFAULT_RULES)
@@ -89,7 +90,7 @@ async function ensureFiles($: EngineInterface, settings?: Settings) {
 }
 
 async function publishChip($: EngineInterface) {
-  await setChip($, (await read($, active)) ? dotChip(await read($, profile), await read($, goals)) : null)
+  await setChip($, (await read($, active)) ? dotChip(await read($, profile), await read($, goals), await read($, round)) : null)
 }
 
 async function sync($: EngineInterface) {
@@ -113,7 +114,10 @@ async function sync($: EngineInterface) {
     }
   }
   await publishChip($)
-  for (const goal of newlyWaiting(before, nextGoals)) if (before.length > 0) $.ui.toast(`${nextProfile.emoji} ${nextProfile.name}: ${goal.question || goal.title}`, { timeoutMs: 10_000 })
+  if (before.length > 0) {
+    for (const goal of newlyWaiting(before, nextGoals)) $.ui.toast(`${nextProfile.emoji} ${nextProfile.name} needs your answer: ${goal.question || goal.title}`, { timeoutMs: 15_000 })
+    for (const goal of newlyAnswered(before, nextGoals)) if (goal.status !== 'waiting') $.ui.toast(`${nextProfile.emoji} ${nextProfile.name} replied: ${goal.title}`, { timeoutMs: 10_000 })
+  }
 }
 
 async function changeGoals($: EngineInterface, change: (list: Goal[], now: number) => Goal[]) {
@@ -240,8 +244,16 @@ async function runNow($: EngineInterface) {
 }
 
 // A new message or reply starts a round at once instead of waiting for the schedule; a round already running picks it up
+async function markSeen($: EngineInterface) {
+  const now = await nowMs($)
+  await changeProfile($, current => ({ ...current, seenAt: now }))
+}
+
 async function startSoon($: EngineInterface, fromUser = false) {
-  if (fromUser) await update($, chained, () => 0)
+  if (fromUser) {
+    await update($, chained, () => 0)
+    await markSeen($)
+  }
   const me = await read($, profile)
   if (!me.scheduled || me.paused || (await read($, round)).state === 'running') return
   await callTool($, 'mcp__scheduled-tasks__run_scheduled_task', { taskId: WORK_TASK })
@@ -350,6 +362,7 @@ export const register: Register = (on, options) => {
           dotDir={(await paths($)).dir}
           showSettings={await read($, showSettings)}
           onToggleSettings={() => update($, showSettings, open => !open)}
+          onSeen={() => markSeen($)}
           onAdd={async title => {
             await changeGoals($, (list, now) => addGoal(list, title, now))
             await startSoon($, true)

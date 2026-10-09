@@ -3,7 +3,7 @@ import type { Goal, GoalStatus, Profile, RoundStatus } from '../types'
 export const DOT_DIR = '.claude-dot'
 export const WORK_TASK = 'dot-work'
 export const BRIEFING_TASK = 'dot-briefing'
-export const DEFAULT_PROFILE: Profile = { name: 'Vlad', emoji: '🧛', paused: false, scheduled: false, everyMinutes: 30, briefing: '09:00' }
+export const DEFAULT_PROFILE: Profile = { name: 'Vlad', emoji: '🧛', paused: false, scheduled: false, everyMinutes: 30, briefing: '09:00', seenAt: 0 }
 export const IDLE_ROUND: RoundStatus = { state: 'idle', goal: '', summary: '', at: 0 }
 export const ROUND_CHOICES = [15, 30, 60, 120] as const
 export const BRIEFING_CHOICES = ['off', '08:00', '09:00', '10:00', '18:00'] as const
@@ -34,6 +34,7 @@ export function parseProfile(text: string): Profile {
       scheduled: parsed.scheduled === true,
       everyMinutes: typeof parsed.everyMinutes === 'number' && parsed.everyMinutes >= 5 ? parsed.everyMinutes : DEFAULT_PROFILE.everyMinutes,
       briefing: typeof parsed.briefing === 'string' ? parsed.briefing : DEFAULT_PROFILE.briefing,
+      seenAt: typeof parsed.seenAt === 'number' ? parsed.seenAt : 0,
     }
   } catch {
     return { ...DEFAULT_PROFILE }
@@ -244,10 +245,29 @@ export function taskPointer(path: string) {
   return `Read ${path} and follow it exactly.`
 }
 
-export function moodOf(profile: Profile, goals: Goal[]): 'working' | 'waiting' | 'idle' | 'paused' {
+export type Mood = 'working' | 'waiting' | 'done' | 'idle' | 'paused'
+
+const replies = (goal: Goal) => goal.notes.filter(note => !note.startsWith('You: ')).length
+
+// Goals with a reply you haven't acknowledged yet
+export function unreadGoals(goals: Goal[], seenAt: number): Goal[] {
+  return goals.filter(goal => goal.status !== 'queued' && goal.status !== 'waiting' && goal.updatedAt > seenAt && replies(goal) > 0)
+}
+
+// Goals whose reply count grew between two reads: what a round just answered
+export function newlyAnswered(before: Goal[], after: Goal[]): Goal[] {
+  return after.filter(goal => {
+    const old = before.find(g => g.id === goal.id)
+    return old !== undefined && replies(goal) > replies(old)
+  })
+}
+
+// A running round wins: that is it working right now; then a question for you, then replies you haven't seen
+export function moodOf(profile: Profile, goals: Goal[], round?: RoundStatus): Mood {
   if (profile.paused) return 'paused'
+  if (round ? round.state === 'running' : goals.some(g => g.status === 'working')) return 'working'
   if (goals.some(g => g.status === 'waiting')) return 'waiting'
-  if (goals.some(g => g.status === 'working')) return 'working'
+  if (unreadGoals(goals, profile.seenAt).length > 0) return 'done'
   return 'idle'
 }
 

@@ -1,12 +1,20 @@
 import type { Chip } from '../src/shared/chip'
-import type { Goal, Profile } from '../types'
-import { activityOf, byStatus } from '../src/dot'
+import type { Goal, Profile, RoundStatus } from '../types'
+import { byStatus, moodOf, unreadGoals } from '../src/dot'
 
-// Its tile in the mods bar: one word of status, a press opens its own pane
-export function dotChip(profile: Profile, goals: Goal[]): Chip {
-  const { waiting } = byStatus(goals)
-  const { status } = activityOf(profile, goals)
-  const tone = waiting.length > 0 ? 'warn' : status === 'working' ? 'ok' : 'accent'
-  const text = waiting.length > 0 ? `${waiting.length} waiting on you` : status
-  return { icon: profile.emoji, label: profile.name.toLowerCase(), tone, parts: [{ text, tone: 'text', action: 'open' }] }
+// Its tile in the mods bar: what it needs from you first, then whether it is working or has news
+export function dotChip(profile: Profile, goals: Goal[], round: RoundStatus): Chip {
+  const mood = moodOf(profile, goals, round)
+  const waiting = byStatus(goals).waiting.length
+  const unread = unreadGoals(goals, profile.seenAt).length
+  const part = mood === 'paused'
+    ? { text: 'paused', tone: 'muted' as const }
+    : waiting > 0
+      ? { text: `⚠ needs you (${waiting})`, tone: 'warn' as const }
+      : mood === 'working'
+        ? { text: '● working…', tone: 'ok' as const }
+        : unread > 0
+          ? { text: `✓ ${unread} new ${unread === 1 ? 'reply' : 'replies'}`, tone: 'info' as const }
+          : { text: 'idle', tone: 'muted' as const }
+  return { icon: profile.emoji, label: profile.name.toLowerCase(), tone: part.tone, parts: [{ ...part, bold: part.tone !== 'muted', action: 'open' }] }
 }
