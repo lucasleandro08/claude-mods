@@ -177,6 +177,13 @@ export function briefingCron(time: string) {
   return `${minute} ${hour} * * 1-5`
 }
 
+// Read-only commands a round may run without approval; settings get a matching Bash(<command>:*) rule each
+export const SAFE_COMMANDS = ['git log', 'git status', 'git diff', 'git show', 'git branch', 'gh pr list', 'gh pr view', 'gh run list', 'gh run view']
+
+export function allowRules(): string[] {
+  return [`Read(~/${DOT_DIR}/**)`, `Edit(~/${DOT_DIR}/**)`, ...SAFE_COMMANDS.map(command => `Bash(${command}:*)`)]
+}
+
 export const DEFAULT_RULES = `# Rules
 
 Each action falls in one level. When unsure, use the stricter one.
@@ -206,7 +213,7 @@ export function workPrompt(name: string, paths: DotPaths) {
 3. Pick ONE goal: the oldest with status "working", else the oldest "queued". If none, stop now: do not invent work.
 4. Set it to "working" and work on it for this round only. Follow the rules file strictly: anything under "Ask first" or "Hand off" must not be done.
 5. Before finishing, update that goal in ${paths.goals} (keep every other goal untouched, keep valid JSON):
-   - append one note to "notes" written to the user, as a reply: what you did or found, and what is next. Answer their question directly when the goal is a question;
+   - ALWAYS append one note to "notes" written to the user, as a chat reply: the answer itself when the goal is a question, otherwise what you did or found and what is next. Never finish a round without this note;
    - status "done" when the goal is complete;
    - status "waiting" with a one-sentence "question" when you need a decision, an approval or a hand-off, then send a desktop notification (PushNotification) saying "${name}: " and the question;
    - otherwise keep "working".
@@ -214,7 +221,11 @@ export function workPrompt(name: string, paths: DotPaths) {
 6. Add to ${paths.memory} anything durable you learned about the user's preferences or setup (short bullets, no secrets).
 7. Last, write ${paths.round} as {"state": "idle", "goal": "<that goal's title>", "summary": "<one short line of what this round did>"}. If there was no goal, leave ${paths.round} untouched.
 
-Use the shell only when the goal itself needs a command, never for bookkeeping. Never print or store secrets. Write notes in the language the goal was written in.`
+Nobody can approve anything during this round: a tool call that asks for approval hangs it forever. So:
+- prefer the Read, Grep and Glob tools;
+- in the shell, run only these read-only commands, as "cd <repository> && <command>": ${SAFE_COMMANDS.join(', ')}. No pipes, no "git -C", nothing else chained;
+- if the goal needs any other command, do not run it: set the goal to "waiting" and ask the user to run it or to allow it.
+Never use the shell for bookkeeping. Never print or store secrets. Write notes in the language the goal was written in.`
 }
 
 export function briefingPrompt(name: string, paths: DotPaths) {

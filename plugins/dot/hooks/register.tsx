@@ -3,7 +3,7 @@ import type { EngineInterface, PluginOptions, Register } from 'claude-code'
 
 import type { Goal, Profile } from '../types'
 import {
-  addGoal, answerGoal, BRIEFING_TASK, briefingCron, briefingPrompt, DEFAULT_PROFILE, DEFAULT_RULES, dotPaths, everyMinutesCron,
+  addGoal, allowRules, answerGoal, BRIEFING_TASK, briefingCron, briefingPrompt, DEFAULT_PROFILE, DEFAULT_RULES, dotPaths, everyMinutesCron,
   IDLE_ROUND, newlyWaiting, parseGoals, parseRound, stampChanged, stampRound, parseProfile, removeGoal, serialize, setStatus, taskPointer, WORK_TASK, workPrompt,
 } from '../src/dot'
 import { isOn, OFF_TEXT, parseState, statePath } from '../src/shared/toggle'
@@ -154,7 +154,7 @@ async function schedule($: EngineInterface, settings: Settings) {
     `Set up the background work of my dot ${me.name} with the scheduled-tasks tools (create, or update if it exists):`,
     `- taskId "${WORK_TASK}", cron "${workCron}", prompt "${taskPointer(p.work)}"`,
     morning ? `- taskId "${BRIEFING_TASK}", cron "${morning}", prompt "${taskPointer(p.briefing)}"` : '',
-    `Then set "scheduled": true in ${p.profile}, and add "Read(~/.claude-dot/**)" and "Edit(~/.claude-dot/**)" to permissions.allow in my user settings so rounds can save their work without waiting for approval.`,
+    `Then set "scheduled": true in ${p.profile}, and add ${allowRules().map(rule => `"${rule}"`).join(', ')} to permissions.allow in my user settings so rounds never wait for an approval.`,
   ].filter(Boolean).join('\n')
   const filled = await $.prompt.fill({ text: ask, mode: 'replace' }).catch(() => ({ isFilled: false }))
   await say($, filled.isFilled ? 'info' : 'error', filled.isFilled ? 'The setup request is in your prompt. Press Enter to finish it.' : "The scheduling tools aren't reachable from here. Run /dot on in a session of the desktop app.")

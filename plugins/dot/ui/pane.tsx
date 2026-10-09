@@ -74,7 +74,7 @@ export function DotPane(props: DotPaneProps) {
       {profile.scheduled && <Schedule {...props} />}
       {notice && <Text color={NOTICE_COLOR[notice.tone]} wrap="wrap">{notice.text}</Text>}
 
-      <Box flexDirection="column" rowGap={1}>
+      <Box flexDirection="column" rowGap={1} borderStyle="single" borderColor={DRACULA.currentLine} paddingX={1} paddingTop={1}>
         {threads.length === 0 && (
           <Text color={DRACULA.comment} wrap="wrap">Ask {profile.name} anything below. Each message becomes a goal it works on in its rounds, and its replies show up here.</Text>
         )}
@@ -123,48 +123,59 @@ type ThreadProps = {
   onRemove: (id: string) => unknown
 }
 
+const BUBBLE_WIDTH = '85%'
+
+// Your messages sit right in a filled bubble; the assistant answers left in an outlined one
+function Bubble({ ui, from, mine, text, tone, id }: { ui: Ui; from: string; mine: boolean; text: string; tone?: string; id: string }) {
+  const { Box, Text } = ui
+  return (
+    <Box key={id} flexDirection="column" alignItems={mine ? 'flex-end' : 'flex-start'} rowGap={0}>
+      <Text color={mine ? DRACULA.cyan : DRACULA.purple} bold>{from}</Text>
+      <Box width={BUBBLE_WIDTH} flexDirection="row" justifyContent={mine ? 'flex-end' : 'flex-start'}>
+        <Box flexShrink={1} paddingX={1}
+          backgroundColor={mine ? DRACULA.currentLine : undefined}
+          borderStyle={mine ? undefined : 'round'} borderColor={mine ? undefined : (tone ?? DRACULA.purple)}>
+          <Text color={tone ?? DRACULA.foreground} wrap="wrap">{text}</Text>
+        </Box>
+      </Box>
+    </Box>
+  )
+}
+
 // One goal as a short conversation: what you asked, what it answered, and where it stands
 function Thread({ ui, goal, name, nextAt, onAnswer, onDone, onRemove }: ThreadProps) {
   const { Box, Text, Button } = ui
   const state = {
-    queued: { text: `Not started. It picks this up in the next round, around ${nextAt}.`, color: DRACULA.comment },
-    working: { text: 'In progress. More in the next round.', color: DRACULA.green },
-    waiting: { text: 'Needs your answer to continue.', color: DRACULA.orange },
+    queued: { text: `${name} hasn't started. It picks this up in the next round, around ${nextAt}.`, color: DRACULA.comment },
+    working: { text: `${name} is on it. More in the next round.`, color: DRACULA.green },
+    waiting: { text: `${name} needs your answer to continue.`, color: DRACULA.orange },
     done: { text: 'Done.', color: DRACULA.comment },
   }[goal.status]
+  const silentDone = goal.status === 'done' && !goal.notes.some(note => !note.startsWith('You: '))
 
   return (
-    <Box key={`thread-${goal.id}`} flexDirection="column" rowGap={0}>
-      <Box flexDirection="row" gap={1} alignItems="flex-start">
-        <Box width={6} flexShrink={0}><Text color={DRACULA.cyan} bold>You</Text></Box>
-        <Box flexGrow={1} flexShrink={1}><Text color={DRACULA.foreground} wrap="wrap">{goal.title}</Text></Box>
-        <Box flexDirection="row" gap={1} flexShrink={0}>
-          {goal.status !== 'done' && <Button key={`done-${goal.id}`} label="Mark done" dimColor plain onPress={() => onDone(goal.id)} />}
-          <Button key={`remove-${goal.id}`} label="Delete" dimColor plain onPress={() => onRemove(goal.id)} />
-        </Box>
-      </Box>
+    <Box key={`thread-${goal.id}`} flexDirection="column" rowGap={1} paddingBottom={1}>
+      <Bubble ui={ui} id={`ask-${goal.id}`} from="You" mine text={goal.title} />
       {goal.notes.map((note, index) => {
         const mine = note.startsWith('You: ')
-        return (
-          <Box key={`note-${goal.id}-${index}`} flexDirection="row" gap={1} alignItems="flex-start">
-            <Box width={6} flexShrink={0}><Text color={mine ? DRACULA.cyan : DRACULA.purple} bold>{mine ? 'You' : name}</Text></Box>
-            <Box flexGrow={1} flexShrink={1}><Text color={DRACULA.foreground} wrap="wrap">{mine ? note.slice(5) : note}</Text></Box>
-          </Box>
-        )
+        return <Bubble ui={ui} id={`note-${goal.id}-${index}`} from={mine ? 'You' : name} mine={mine} text={mine ? note.slice(5) : note} />
       })}
       {goal.status === 'waiting' && goal.question !== '' && (
-        <Box flexDirection="row" gap={1} alignItems="flex-start">
-          <Box width={6} flexShrink={0}><Text color={DRACULA.purple} bold>{name}</Text></Box>
-          <Box flexGrow={1} flexShrink={1}><Text color={DRACULA.orange} bold wrap="wrap">{goal.question}</Text></Box>
-        </Box>
+        <Bubble ui={ui} id={`question-${goal.id}`} from={name} mine={false} text={goal.question} tone={DRACULA.orange} />
       )}
-      <Box paddingLeft={7}><Text color={state.color}>{state.text}</Text></Box>
       {goal.status === 'waiting' && 'Input' in ui && (
-        <Box paddingLeft={7}>
-          <ui.Input key={`answer-${goal.id}-${goal.notes.length}`} label="Reply" placeholder="Your answer" value=""
+        <Box borderStyle="round" borderColor={DRACULA.orange} paddingX={1}>
+          <ui.Input key={`answer-${goal.id}-${goal.notes.length}`} placeholder={`Answer ${name}…`} submitLabel="send" value=""
             onSubmit={(text: string) => void onAnswer(goal.id, text)} />
         </Box>
       )}
+      <Box flexDirection="row" gap={1} alignItems="center">
+        <Box flexGrow={1} flexShrink={1}>
+          <Text color={state.color} wrap="wrap">{silentDone ? `Done, but ${name} left no reply.` : state.text}</Text>
+        </Box>
+        {goal.status !== 'done' && <Button key={`done-${goal.id}`} label="Mark done" dimColor plain onPress={() => onDone(goal.id)} />}
+        <Button key={`remove-${goal.id}`} label="Delete" dimColor plain onPress={() => onRemove(goal.id)} />
+      </Box>
     </Box>
   )
 }
@@ -172,8 +183,16 @@ function Thread({ ui, goal, name, nextAt, onAnswer, onDone, onRemove }: ThreadPr
 // Keyed by the goal count so the field comes back empty once a message lands
 function Composer({ ui, name, count, onAdd }: { ui: Ui; name: string; count: number; onAdd: (title: string) => unknown }) {
   if (!('Input' in ui)) return undefined
-  const { Input } = ui
-  return <Input key={`new-goal-${count}`} label={`Message ${name}`} placeholder="Check my open PRs and tell me which need me" value="" onSubmit={(text: string) => void onAdd(text)} />
+  const { Box, Text, Input } = ui
+  return (
+    <Box flexDirection="column" rowGap={0}>
+      <Box borderStyle="round" borderColor={DRACULA.purple} paddingX={1}>
+        <Input key={`new-goal-${count}`} placeholder={`Message ${name}…`} submitLabel="send" autoFocus value=""
+          onSubmit={(text: string) => void onAdd(text)} />
+      </Box>
+      <Text color={DRACULA.comment}>Enter sends. {name} answers in its next round, or now with "Run a round now".</Text>
+    </Box>
+  )
 }
 
 export function PaneError({ ui, message }: { ui: Ui; message: string }) {

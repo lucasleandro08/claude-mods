@@ -54,10 +54,11 @@ describe('dot', () => {
       const pane = await $.ui.mount({ plugin: 'dot', surface, component: 'Pane', requestId: 'dot', props: PANE })
       expect(await pane.find({ text: 'Vlad' })).toBeDefined()
       expect(await pane.find({ text: 'Can I push to staging?' })).toBeDefined()
-      expect(await pane.find({ text: 'Needs your answer to continue.' })).toBeDefined()
+      expect(await pane.find({ text: 'Vlad needs your answer to continue.' })).toBeDefined()
       expect(await pane.find({ text: 'halfway' })).toBeDefined()
+      expect(await pane.find({ text: 'Done, but Vlad left no reply.' })).toBeDefined()
       expect(await pane.find({ text: 'read the RFC' })).toBeDefined()
-      expect(await pane.find({ text: 'In progress. More in the next round.' })).toBeDefined()
+      expect(await pane.find({ text: 'Vlad is on it. More in the next round.' })).toBeDefined()
       if (surface === 'desktop') expect((await pane.find({ type: 'Svg' }))?.props.source).toContain('<svg')
       expect(JSON.stringify(await pane.drawn()).length < 100_000).toBe(true)
 
