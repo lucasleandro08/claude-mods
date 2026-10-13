@@ -222,7 +222,7 @@ Each action falls in one level. When unsure, use the stricter one.
 - Deleting data permanently.
 `
 
-export function workPrompt(name: string, paths: DotPaths, allowedTools: readonly string[] = []) {
+export function workPrompt(name: string, paths: DotPaths, allowedTools: readonly string[] = [], allowedCommands: readonly string[] = []) {
   return `You are ${name}, the user's always-on assistant. This is one background work round; nobody is watching it live.
 
 1. Read ${paths.profile}. If "paused" is true, stop now without doing anything.
@@ -242,14 +242,14 @@ export function workPrompt(name: string, paths: DotPaths, allowedTools: readonly
 Keep each round small so you stay focused: once you've made about ${ROUND_BUDGET} tool calls, or read a lot of output, stop where you are. Write the note with what you did, what's left and the exact next step, keep the goal "working", and finish the round; the next round starts fresh from that note.
 
 Nobody can approve anything during this round: any call that asks for approval hangs it forever. So:
-- never use the shell (Bash) at all. Use only Read, Grep and Glob, which work anywhere under the home folder without approval;
+- the shell (Bash) only for these pre-approved commands, run exactly as one command each: no cd, no pipes, no &&, no redirects, no other command (anything else hangs the round): ${allowedCommands.length > 0 ? allowedCommands.join(', ') : 'none'}. For files, use Read, Grep and Glob, which work anywhere under the home folder;
 - for git history, Read <repository>/.git/logs/HEAD: each line is "old new author <email> timestamp timezone<TAB>action: message", the last line is the latest commit; the current branch is in <repository>/.git/HEAD;
 - connected apps (Slack, email, calendar…): their read tools (search, read, list, get) are pre-approved. Load tools with ToolSearch first when they are deferred;
 - the only other tools that run without approval are these (any tool not listed here or above hangs the round, so never call it): ${allowedTools.length > 0 ? allowedTools.join(', ') : 'none'}. When an approved action needs a tool that is not listed, say in the note exactly which tool name the user should add to permissions.allow in ~/.claude/settings.json;
 - your other Claude Code sessions: list_sessions, get_session, list_events and search_session_transcripts (mcp__ccd_session_mgmt__*) show what each one is doing; read them freely. Keep ${paths.sessions} as your map of them (at most ${SESSIONS_LIMIT} lines, newest first): one line per session you looked at or used, "- <title> (<session id>): <repo/branch>, <what it is for>, <last status, date>"; update a line when you learn more and drop sessions that no longer exist. To pick who should do a piece of work, match the goal against that map (title, repo, topic) before messaging anyone. When no session fits, you cannot create one: tell the user in the note to open a new Claude Code session in <folder> and give them the exact first message to paste. send_message (or SendMessage) delivers a message into one as a user turn, so that session acts on it: only send when the goal itself asks you to, or the user approved that exact message in the thread, and say in the note which session you messaged and what;
 - sending a message on the user's behalf (Slack, email): only when the goal itself asks you to send it, or the user approved it in the thread. Write it in the user's voice and language, short, and put the exact text you sent and where (channel or person, with the link) in your note;
 - when the app isn't connected (ToolSearch finds no tool for it), say so in the note and tell the user to connect it in the claude.ai connector settings;
-- if the goal really needs a shell command or a web request, do not try it: set the goal to "waiting" and ask the user to run it, with the exact command.
+- if the goal needs any other shell command or a web request, do not try it: set the goal to "waiting" and ask the user to run it (with the exact command) or to add it to permissions.allow as Bash(<command prefix>:*).
 Never print or store secrets. Write notes in the user's language (see the memory file), else the goal's language. Keep notes short and scannable: lead with the answer, then a few short lines or a numbered list.`
 }
 
@@ -377,4 +377,18 @@ export function markStuck(goals: Goal[], title: string, minutes: number, now: nu
   return goals.map(goal => goal.title === title && goal.status !== 'done'
     ? { ...goal, status: 'waiting', question: `A round on this stopped after ${minutes} min waiting for an approval nobody could give. Should I try another way, or will you do that step?`, updatedAt: now }
     : goal)
+}
+
+// Shell prefixes allowed in settings (Bash(<prefix>:*)), so a round knows which commands won't wait for approval
+export function shellCommandsAllowed(settingsText: string): string[] {
+  try {
+    const allow = (JSON.parse(settingsText) as { permissions?: { allow?: unknown } }).permissions?.allow
+    if (!Array.isArray(allow)) return []
+    return allow.flatMap(rule => {
+      const match = typeof rule === 'string' ? /^Bash\((.+?)(?::\*)?\)$/.exec(rule) : null
+      return match ? [match[1] as string] : []
+    })
+  } catch {
+    return []
+  }
 }

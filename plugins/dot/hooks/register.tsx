@@ -3,7 +3,7 @@ import type { EngineInterface, PluginOptions, Register } from 'claude-code'
 
 import type { Goal, Profile } from '../types'
 import {
-  addGoal, allowRules, answerGoal, finishedRunIds, memoryStats, splitArchive, markStuck, runningRunIds, writeToolsAllowed, BRIEFING_TASK, briefingCron, briefingPrompt, DEFAULT_PROFILE, DEFAULT_RULES, dotPaths, everyMinutesCron,
+  addGoal, allowRules, answerGoal, finishedRunIds, shellCommandsAllowed, memoryStats, splitArchive, markStuck, runningRunIds, writeToolsAllowed, BRIEFING_TASK, briefingCron, briefingPrompt, DEFAULT_PROFILE, DEFAULT_RULES, dotPaths, everyMinutesCron,
   IDLE_ROUND, newlyAnswered, newlyWaiting, parseGoals, parseRound, stampChanged, stampRound, parseProfile, removeGoal, serialize, setStatus, taskPointer, WORK_TASK, workPrompt,
 } from '../src/dot'
 import { isOn, OFF_TEXT, parseState, statePath } from '../src/shared/toggle'
@@ -85,8 +85,8 @@ async function ensureFiles($: EngineInterface, settings?: Settings) {
   if ((await readText($, p.sessions)) === undefined) await $.fs.write(p.sessions, '# Claude Code sessions\n')
   if ((await readText($, p.rules)) === undefined) await $.fs.write(p.rules, DEFAULT_RULES)
   const home = (await $.env.get('HOME')) ?? ''
-  const allowed = writeToolsAllowed((await readText($, `${home}/.claude/settings.json`)) ?? '')
-  await $.fs.write(p.work, `${workPrompt(current.name, p, allowed)}\n`)
+  const settingsText = (await readText($, `${home}/.claude/settings.json`)) ?? ''
+  await $.fs.write(p.work, `${workPrompt(current.name, p, writeToolsAllowed(settingsText), shellCommandsAllowed(settingsText))}\n`)
   await $.fs.write(p.briefing, `${briefingPrompt(current.name, p)}\n`)
   return p
 }

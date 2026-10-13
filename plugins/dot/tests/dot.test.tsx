@@ -2,7 +2,7 @@ import type { On } from 'claude-code'
 import { describe, expect, mock, test } from 'claude-code/testing'
 
 import { avatarSvg } from '../src/avatar'
-import { activityOf, addGoal, answerGoal, briefingCron, everyMinutesCron, moodOf, newlyWaiting, parseGoals, parseProfile, stampChanged, parseRound, stampRound, nextRoundAt, clock, splitLinks, writeToolsAllowed, runningRunIds, markStuck, finishedRunIds, splitArchive, memoryStats } from '../src/dot'
+import { activityOf, addGoal, answerGoal, briefingCron, everyMinutesCron, moodOf, newlyWaiting, parseGoals, parseProfile, stampChanged, parseRound, stampRound, nextRoundAt, clock, splitLinks, writeToolsAllowed, runningRunIds, markStuck, finishedRunIds, splitArchive, memoryStats, shellCommandsAllowed } from '../src/dot'
 
 const HOME = '/home/dev'
 const DIR = `${HOME}/.claude-dot`
@@ -280,6 +280,7 @@ describe('dot', () => {
     const settings = JSON.stringify({ permissions: { allow: ['Read(~/.claude-dot/**)', 'mcp__g__search_threads', 'mcp__g__label_thread', 'mcp__g__create_label', 'mcp__Claude_Browser__navigate'] } })
     expect(writeToolsAllowed(settings)).toEqual(['mcp__g__label_thread', 'mcp__g__create_label'])
     expect(writeToolsAllowed('not json')).toEqual([])
+    expect(shellCommandsAllowed(JSON.stringify({ permissions: { allow: ['Bash(gh search:*)', 'Bash(git status)', 'Read(~/x)'] } }))).toEqual(['gh search', 'git status'])
   })
 
   test('splitLinks names known hosts and keeps the text clean', () => {
