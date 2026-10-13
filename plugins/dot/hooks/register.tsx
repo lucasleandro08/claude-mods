@@ -4,7 +4,7 @@ import type { EngineInterface, PluginOptions, Register } from 'claude-code'
 import type { Goal, Profile } from '../types'
 import {
   addGoal, allowRules, answerGoal, finishedRunIds, shellCommandsAllowed, memoryStats, splitArchive, markStuck, runningRunIds, writeToolsAllowed, BRIEFING_TASK, briefingCron, briefingPrompt, DEFAULT_PROFILE, DEFAULT_RULES, dotPaths, everyMinutesCron,
-  IDLE_ROUND, newlyAnswered, newlyWaiting, parseGoals, parseRound, stampChanged, stampRound, parseProfile, removeGoal, serialize, setStatus, taskPointer, WORK_TASK, workPrompt,
+  IDLE_ROUND, WATCH_CRON, WATCH_TASK, watchPrompt, newlyAnswered, newlyWaiting, parseGoals, parseRound, stampChanged, stampRound, parseProfile, removeGoal, serialize, setStatus, taskPointer, WORK_TASK, workPrompt,
 } from '../src/dot'
 import { isOn, OFF_TEXT, parseState, statePath } from '../src/shared/toggle'
 import { barIsLive, sameChip, type Chip, type ChipPress } from '../src/shared/chip'
@@ -41,7 +41,7 @@ async function setChip($: EngineInterface, next: Chip | null) {
 }
 
 const PANE_ID = 'dot'
-const USAGE = 'Usage: /dot · /dot <goal> · /dot pause | resume | run | on | clear · /dot name <name> [emoji]'
+const USAGE = 'Usage: /dot · /dot <goal> · /dot pause | resume | run | on | clear | watch [off] · /dot name <name> [emoji]'
 
 const profile = atom({ plugin: 'dot', key: 'profile' } as const, DEFAULT_PROFILE)
 const goals = atom({ plugin: 'dot', key: 'goals' } as const, [])
@@ -91,6 +91,7 @@ async function ensureFiles($: EngineInterface, settings?: Settings) {
   const settingsText = (await readText($, `${home}/.claude/settings.json`)) ?? ''
   await $.fs.write(p.work, `${workPrompt(current.name, p, writeToolsAllowed(settingsText), shellCommandsAllowed(settingsText))}\n`)
   await $.fs.write(p.briefing, `${briefingPrompt(current.name, p)}\n`)
+  await $.fs.write(p.watch, `${watchPrompt(current.name, p)}\n`)
   return p
 }
 
@@ -174,7 +175,7 @@ async function toolText($: EngineInterface, tool: string, input: Record<string, 
 
 // Finished rounds leave a session each in the sidebar; archive them so only the live one shows
 async function archiveFinished($: EngineInterface) {
-  for (const taskId of [WORK_TASK, BRIEFING_TASK]) {
+  for (const taskId of [WORK_TASK, BRIEFING_TASK, WATCH_TASK]) {
     const ids = finishedRunIds((await toolText($, 'mcp__scheduled-tasks__list_task_runs', { taskId, limit: 50 })) ?? '')
     for (const id of ids) await callTool($, 'mcp__ccd_session_mgmt__archive_session', { session_id: id, reason: 'finished dot round' })
   }
@@ -254,10 +255,22 @@ async function setBriefing($: EngineInterface, time: string) {
   await say($, ok ? 'ok' : 'error', ok ? (cron ? `Weekday briefing at ${value}.` : 'Briefing turned off.') : "Couldn't change the briefing. Try again from a desktop app session.")
 }
 
+async function setWatch($: EngineInterface, enabled: boolean) {
+  await changeProfile($, current => ({ ...current, watch: enabled }))
+  const me = await read($, profile)
+  const ok = enabled
+    ? await upsertTask($, WATCH_TASK, `${me.name} · watch`, WATCH_CRON, (await paths($)).watch)
+    : await callTool($, 'mcp__scheduled-tasks__update_scheduled_task', { taskId: WATCH_TASK, enabled: false })
+  await say($, ok ? 'ok' : 'error', ok
+    ? (enabled ? `${me.name} checks Slack and your calendar every 30 min and tells you what's new.` : 'Watch turned off.')
+    : "Couldn't change the watch. Try again from a desktop app session.")
+}
+
 async function togglePause($: EngineInterface) {
   const paused = !(await read($, profile)).paused
   await changeProfile($, current => ({ ...current, paused }))
-  for (const taskId of [WORK_TASK, BRIEFING_TASK]) await callTool($, 'mcp__scheduled-tasks__update_scheduled_task', { taskId, enabled: !paused })
+  const watching = (await read($, profile)).watch
+  for (const taskId of [WORK_TASK, BRIEFING_TASK, ...(watching ? [WATCH_TASK] : [])]) await callTool($, 'mcp__scheduled-tasks__update_scheduled_task', { taskId, enabled: !paused })
   await say($, 'info', paused ? 'Paused. No rounds run until you resume.' : 'Resumed. The next round picks up the queue.')
 }
 
@@ -328,7 +341,7 @@ export const register: Register = (on, options) => {
   })
 
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'dot', description: 'Your always-on assistant: /dot, /dot <goal>, /dot pause|resume|run|on|clear' })
+    await $.command.register({ name: 'dot', description: 'Your always-on assistant: /dot, /dot <goal>, /dot pause|resume|run|on|clear|watch' })
     $.clock.every(CHECK_MS, () => void sync($).catch(() => undefined))
     $.clock.every(60_000, () => void stopStuck($, settings.autoStopMinutes).catch(() => undefined))
     if (settings.openOnStart) $.clock.after(1000, () => void isActive($).then(enabled => (enabled ? openPane($) : undefined)).catch(() => undefined))
@@ -358,7 +371,11 @@ export const register: Register = (on, options) => {
       await schedule($, settings)
       return { text: (await read($, notice))?.text ?? '' }
     }
-    if (verb === 'clear') {
+    if (verb === 'watch') {
+      await setWatch($, rest[0] !== 'off')
+      return { text: (await read($, notice))?.text ?? '' }
+    }
+        if (verb === 'clear') {
       await clearChat($)
       return { text: `${me.name}'s chat is clear. Old conversations are in ${(await paths($)).archive}.` }
     }
@@ -418,6 +435,7 @@ export const register: Register = (on, options) => {
           onSeen={() => markSeen($)}
           confirmClear={(await read($, confirmClear)) > 0}
           onClear={() => pressClear($)}
+          onWatch={enabled => setWatch($, enabled)}
           onAdd={async title => {
             // While it waits on you, the main field answers that question instead of opening a new thread
             const asking = (await read($, goals)).find(goal => goal.status === 'waiting')

@@ -3,12 +3,15 @@ import type { Goal, GoalStatus, Profile, RoundStatus } from '../types'
 export const DOT_DIR = '.claude-dot'
 export const WORK_TASK = 'dot-work'
 export const BRIEFING_TASK = 'dot-briefing'
-export const DEFAULT_PROFILE: Profile = { name: 'Vlad', emoji: '🧛', paused: false, scheduled: false, everyMinutes: 30, briefing: '09:00', seenAt: 0 }
+export const WATCH_TASK = 'dot-watch'
+export const WATCH_GOAL_ID = 'watch'
+export const WATCH_CRON = '*/30 * * * *'
+export const DEFAULT_PROFILE: Profile = { name: 'Vlad', emoji: '🧛', paused: false, scheduled: false, everyMinutes: 30, briefing: '09:00', seenAt: 0, watch: false }
 export const IDLE_ROUND: RoundStatus = { state: 'idle', goal: '', summary: '', at: 0 }
 export const ROUND_CHOICES = [15, 30, 60, 120] as const
 export const BRIEFING_CHOICES = ['off', '08:00', '09:00', '10:00', '18:00'] as const
 
-export type DotPaths = { dir: string; profile: string; goals: string; round: string; memory: string; rules: string; work: string; briefing: string; sessions: string; archive: string; globalMemory: string }
+export type DotPaths = { dir: string; profile: string; goals: string; round: string; memory: string; rules: string; work: string; briefing: string; sessions: string; archive: string; watch: string; watchState: string; globalMemory: string }
 
 export function dotPaths(home: string): DotPaths {
   const dir = `${home}/${DOT_DIR}`
@@ -23,6 +26,8 @@ export function dotPaths(home: string): DotPaths {
     briefing: `${dir}/briefing.md`,
     sessions: `${dir}/sessions.md`,
     archive: `${dir}/archive.json`,
+    watch: `${dir}/watch.md`,
+    watchState: `${dir}/watch.json`,
     globalMemory: `${home}/.claude/projects/${home.replace(/[/.]/g, '-')}/memory/MEMORY.md`,
   }
 }
@@ -38,6 +43,7 @@ export function parseProfile(text: string): Profile {
       everyMinutes: typeof parsed.everyMinutes === 'number' && parsed.everyMinutes >= 5 ? parsed.everyMinutes : DEFAULT_PROFILE.everyMinutes,
       briefing: typeof parsed.briefing === 'string' ? parsed.briefing : DEFAULT_PROFILE.briefing,
       seenAt: typeof parsed.seenAt === 'number' ? parsed.seenAt : 0,
+      watch: parsed.watch === true,
     }
   } catch {
     return { ...DEFAULT_PROFILE }
@@ -251,6 +257,22 @@ Nobody can approve anything during this round: any call that asks for approval h
 - when the app isn't connected (ToolSearch finds no tool for it), say so in the note and tell the user to connect it in the claude.ai connector settings;
 - if the goal needs any other shell command or a web request, do not try it: set the goal to "waiting" and ask the user to run it (with the exact command) or to add it to permissions.allow as Bash(<command prefix>:*).
 Never print or store secrets. Write notes in the user's language (see the memory file), else the goal's language. Keep notes short and scannable: lead with the answer, then a few short lines or a numbered list.`
+}
+
+export function watchPrompt(name: string, paths: DotPaths) {
+  return `You are ${name}, the user's always-on assistant. This is a quick watch: only check what is new, act on nothing, and finish fast (about 10 tool calls).
+
+1. Read ${paths.profile}. If "paused" is true, stop now.
+2. Read ${paths.watchState} ({"lastCheck": "<ISO time>"}; if missing, use 30 minutes ago) and ${paths.memory}.
+3. Slack (connector read tools, load them with ToolSearch): messages sent to the user after lastCheck that need them: direct messages and group DMs addressed to them, and @mentions of them in channels. Skip the user's own messages, bots and automatic notifications.
+4. Google Calendar (connector read tools): invitations the user received or that changed after lastCheck (new meetings, new times, cancellations), and anything starting in the next 60 minutes that they haven't answered.
+5. If nothing is new, write ${paths.watchState} with {"lastCheck": "<now, ISO>"} and stop. Do not touch any other file.
+6. If something is new:
+   - in ${paths.goals}, find the goal with "id": "${WATCH_GOAL_ID}" (create it if missing: {"id": "${WATCH_GOAL_ID}", "title": "Watch: Slack and calendar", "status": "done", "notes": [], "question": "", "createdAt": 0, "updatedAt": 0}) and append ONE note: a short list, one line per item, who, what in a few words, and the link. Keep every other goal untouched and valid JSON; do not touch timestamps;
+   - send one desktop notification (PushNotification, under 200 characters) starting with "${name}: ", like "${name}: 2 new Slack messages (Igor, Talita) and 1 invite at 15:00";
+   - write ${paths.watchState} with {"lastCheck": "<now, ISO>"}.
+
+Never reply, react, accept or decline anything: only report. Use only read tools and the Edit/Write tools on files in ${paths.dir}. Write in the user's language (see the memory file).`
 }
 
 export function briefingPrompt(name: string, paths: DotPaths) {

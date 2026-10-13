@@ -276,6 +276,25 @@ describe('dot', () => {
     expect(memoryStats('# Memory\n- a\n- b\ntext')).toEqual({ bullets: 2, chars: 21 })
   })
 
+  test('Watch schedules a 30-min check of Slack and calendar, and turns it off', async ($, on) => {
+    const files = disk(on, { [`${DIR}/profile.json`]: JSON.stringify({ name: 'Vlad', scheduled: true, everyMinutes: 30, seenAt: 1 }) })
+    const calls: string[] = []
+    on('tool.call', { tool: 'mcp__scheduled-tasks__update_scheduled_task' }, ($, e) => {
+      const input = e as unknown as { taskId: string; cronExpression?: string; enabled?: boolean }
+      calls.push(`${input.taskId} ${input.cronExpression ?? ''} ${input.enabled}`)
+      return { result: {} as never }
+    })
+    await $.command.run({ command: 'dot', args: '' } as never)
+    const pane = await $.ui.mount({ plugin: 'dot', surface: 'desktop', component: 'Pane', requestId: 'dot', props: PANE })
+    await pane.press({ key: 'settings' })
+    await pane.press({ key: 'watch' })
+    expect(calls).toContain('dot-watch */30 * * * * true')
+    expect(parseProfile(files[`${DIR}/profile.json`] ?? '').watch).toBe(true)
+    expect(files[`${DIR}/watch.md`]).toContain('Slack')
+    await pane.press({ key: 'watch' })
+    expect(calls.at(-1)).toBe('dot-watch  false')
+  })
+
   test('Clear asks once more, then moves every goal to the archive', async ($, on) => {
     const files = disk(on, {
       [`${DIR}/profile.json`]: JSON.stringify({ name: 'Vlad', scheduled: false, everyMinutes: 30, seenAt: 1 }),

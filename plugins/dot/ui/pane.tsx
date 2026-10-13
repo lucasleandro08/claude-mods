@@ -47,6 +47,7 @@ export type DotPaneProps = {
   onToggleSettings: () => unknown
   confirmClear: boolean
   onClear: () => unknown
+  onWatch: (enabled: boolean) => unknown
   onSeen: () => unknown
 }
 
@@ -168,7 +169,7 @@ function Empty({ ui, name }: { ui: Ui; name: string }) {
   )
 }
 
-function Settings({ ui, profile, dotDir, memory, onEvery, onBriefing, onPause }: DotPaneProps) {
+function Settings({ ui, profile, dotDir, memory, onEvery, onBriefing, onPause, onWatch }: DotPaneProps) {
   const { Box, Text, Button } = ui
   return (
     <Box flexDirection="column" rowGap={1} backgroundColor={SURFACE} paddingX={2} paddingY={1}>
@@ -189,6 +190,12 @@ function Settings({ ui, profile, dotDir, memory, onEvery, onBriefing, onPause }:
             : <Button key={`every-${m}`} label={m < 60 ? `${m}m` : `${m / 60}h`} dimColor plain onPress={() => onEvery(m)} />)}
         </Box>
       )}
+      <Box flexDirection="row" gap={2} alignItems="center" flexWrap="wrap">
+        <Text color={profile.watch ? DRACULA.green : DRACULA.comment}>
+          {profile.watch ? '● Watching Slack and calendar every 30 min' : '○ Not watching Slack and calendar'}
+        </Text>
+        <Button key="watch" label={profile.watch ? 'Stop watching' : 'Watch every 30 min'} plain={profile.watch ? true : undefined} dimColor={profile.watch} onPress={() => onWatch(!profile.watch)} />
+      </Box>
       <Box flexDirection="row" gap={2} alignItems="center" flexWrap="wrap">
         <Text color={memory.bullets > MEMORY_LIMIT ? DRACULA.orange : DRACULA.comment}>
           {`Memory: ${memory.bullets}/${MEMORY_LIMIT} facts · ${(memory.chars / 1000).toFixed(1)}k chars`}
