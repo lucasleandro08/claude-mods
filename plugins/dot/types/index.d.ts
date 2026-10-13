@@ -30,6 +30,7 @@ declare module 'claude-code' {
       showSettings: boolean
       chained: number
       memory: { bullets: number; chars: number }
+      confirmClear: number
     }
   }
 }

@@ -45,6 +45,8 @@ export type DotPaneProps = {
   onEvery: (minutes: number) => unknown
   onBriefing: (time: string) => unknown
   onToggleSettings: () => unknown
+  confirmClear: boolean
+  onClear: () => unknown
   onSeen: () => unknown
 }
 
@@ -78,6 +80,7 @@ export function DotPane(props: DotPaneProps) {
         <Box flexGrow={1}><Text color={DRACULA.comment} bold>{`${profile.emoji} ${profile.name}`}</Text></Box>
         {!profile.scheduled && <Button key="schedule" label="Turn on" onPress={props.onSchedule} />}
         {canRun && <Button key="run-now" label="Run now" plain dimColor onPress={props.onRunNow} />}
+        {goals.length > 0 && <Button key="clear" label={props.confirmClear ? 'Confirm clear?' : 'Clear'} plain dimColor={!props.confirmClear} onPress={props.onClear} />}
         <Button key="settings" label={props.showSettings ? 'Close' : 'Settings'} plain dimColor onPress={props.onToggleSettings} />
       </Box>
       {props.showSettings && <Settings {...props} />}

@@ -41,7 +41,7 @@ async function setChip($: EngineInterface, next: Chip | null) {
 }
 
 const PANE_ID = 'dot'
-const USAGE = 'Usage: /dot · /dot <goal> · /dot pause | resume | run | on · /dot name <name> [emoji]'
+const USAGE = 'Usage: /dot · /dot <goal> · /dot pause | resume | run | on | clear · /dot name <name> [emoji]'
 
 const profile = atom({ plugin: 'dot', key: 'profile' } as const, DEFAULT_PROFILE)
 const goals = atom({ plugin: 'dot', key: 'goals' } as const, [])
@@ -52,6 +52,9 @@ const showSettings = atom({ plugin: 'dot', key: 'showSettings' } as const, false
 // Rounds chained back to back while work is left; capped so a goal that never finishes can't loop forever
 const chained = atom({ plugin: 'dot', key: 'chained' } as const, 0)
 const MAX_CHAINED = 8
+// Clear asks once more; a second press within this window clears
+const confirmClear = atom({ plugin: 'dot', key: 'confirmClear' } as const, 0)
+const CONFIRM_MS = 5000
 const memory = atom({ plugin: 'dot', key: 'memory' } as const, { bullets: 0, chars: 0 })
 type Settings = { everyMinutes: number; briefing: string; openOnStart: boolean; autoStopMinutes: number }
 
@@ -273,6 +276,27 @@ async function markSeen($: EngineInterface) {
   await changeProfile($, current => ({ ...current, seenAt: now }))
 }
 
+// Moves every goal to archive.json (nothing is lost) and leaves the chat empty
+async function clearChat($: EngineInterface) {
+  const p = await ensureFiles($)
+  const current = parseGoals((await readText($, p.goals)) ?? '[]')
+  if (current.length > 0) {
+    const stored = parseGoals((await readText($, p.archive)) ?? '[]')
+    await $.fs.write(p.archive, serialize([...stored, ...current]))
+  }
+  await $.fs.write(p.goals, serialize([]))
+  await update($, goals, () => [])
+  await update($, confirmClear, () => 0)
+  await markSeen($)
+}
+
+async function pressClear($: EngineInterface) {
+  const now = await nowMs($)
+  if (now - (await read($, confirmClear)) < CONFIRM_MS) return clearChat($)
+  await update($, confirmClear, () => now)
+  $.clock.after(CONFIRM_MS, () => void update($, confirmClear, () => 0).catch(() => undefined))
+}
+
 async function startSoon($: EngineInterface, fromUser = false) {
   if (fromUser) {
     await update($, chained, () => 0)
@@ -304,7 +328,7 @@ export const register: Register = (on, options) => {
   })
 
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'dot', description: 'Your always-on assistant: /dot, /dot <goal>, /dot pause|resume|run|on' })
+    await $.command.register({ name: 'dot', description: 'Your always-on assistant: /dot, /dot <goal>, /dot pause|resume|run|on|clear' })
     $.clock.every(CHECK_MS, () => void sync($).catch(() => undefined))
     $.clock.every(60_000, () => void stopStuck($, settings.autoStopMinutes).catch(() => undefined))
     if (settings.openOnStart) $.clock.after(1000, () => void isActive($).then(enabled => (enabled ? openPane($) : undefined)).catch(() => undefined))
@@ -333,6 +357,10 @@ export const register: Register = (on, options) => {
     if (verb === 'on') {
       await schedule($, settings)
       return { text: (await read($, notice))?.text ?? '' }
+    }
+    if (verb === 'clear') {
+      await clearChat($)
+      return { text: `${me.name}'s chat is clear. Old conversations are in ${(await paths($)).archive}.` }
     }
     if (verb === 'name') {
       const [name, emoji] = rest
@@ -388,6 +416,8 @@ export const register: Register = (on, options) => {
           memory={await read($, memory)}
           onToggleSettings={() => update($, showSettings, open => !open)}
           onSeen={() => markSeen($)}
+          confirmClear={(await read($, confirmClear)) > 0}
+          onClear={() => pressClear($)}
           onAdd={async title => {
             // While it waits on you, the main field answers that question instead of opening a new thread
             const asking = (await read($, goals)).find(goal => goal.status === 'waiting')

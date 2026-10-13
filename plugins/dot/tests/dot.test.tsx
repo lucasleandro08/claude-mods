@@ -276,6 +276,21 @@ describe('dot', () => {
     expect(memoryStats('# Memory\n- a\n- b\ntext')).toEqual({ bullets: 2, chars: 21 })
   })
 
+  test('Clear asks once more, then moves every goal to the archive', async ($, on) => {
+    const files = disk(on, {
+      [`${DIR}/profile.json`]: JSON.stringify({ name: 'Vlad', scheduled: false, everyMinutes: 30, seenAt: 1 }),
+      [`${DIR}/goals.json`]: JSON.stringify([{ id: 'a', title: 'old', status: 'done', notes: ['x'], question: '', createdAt: 1, updatedAt: 1 }]),
+    })
+    await $.command.run({ command: 'dot', args: '' } as never)
+    const pane = await $.ui.mount({ plugin: 'dot', surface: 'desktop', component: 'Pane', requestId: 'dot', props: PANE })
+    await pane.press({ key: 'clear' })
+    expect(goalsOf(files).length).toBe(1)
+    expect((await pane.find({ type: 'Button', key: 'clear' }))?.props.label).toBe('Confirm clear?')
+    await pane.press({ key: 'clear' })
+    expect(goalsOf(files).length).toBe(0)
+    expect(parseGoals(files[`${DIR}/archive.json`] ?? '[]').map(g => g.id)).toEqual(['a'])
+  })
+
   test('writeToolsAllowed lists the allowed MCP write tools, not reads', () => {
     const settings = JSON.stringify({ permissions: { allow: ['Read(~/.claude-dot/**)', 'mcp__g__search_threads', 'mcp__g__label_thread', 'mcp__g__create_label', 'mcp__Claude_Browser__navigate'] } })
     expect(writeToolsAllowed(settings)).toEqual(['mcp__g__label_thread', 'mcp__g__create_label'])
