@@ -272,7 +272,7 @@ export function watchPrompt(name: string, paths: DotPaths) {
    - send one desktop notification (PushNotification, under 200 characters) starting with "${name}: ", like "${name}: 2 new Slack messages (Igor, Talita) and 1 invite at 15:00";
    - write ${paths.watchState} with {"lastCheck": "<now, ISO>"}.
 
-Never reply, react, accept or decline anything: only report. Use only read tools and the Edit/Write tools on files in ${paths.dir}. Write in the user's language (see the memory file).`
+Nobody can approve anything here: a call that asks for approval hangs the watch forever. So never use the shell (Bash), not even to read or to get the time; read files with Read, change them only with the Edit or Write tools, and take "now" from the newest Slack or calendar timestamp you saw (or lastCheck plus 30 minutes). Never reply, react, accept or decline anything: only report. Write in the user's language (see the memory file).`
 }
 
 export function briefingPrompt(name: string, paths: DotPaths) {
@@ -367,7 +367,7 @@ export function writeToolsAllowed(settingsText: string): string[] {
   }
 }
 
-type TaskRun = { session_id?: unknown; status?: unknown; archived?: unknown }
+type TaskRun = { session_id?: unknown; status?: unknown; archived?: unknown; started_at?: unknown }
 
 function taskRuns(text: string): TaskRun[] {
   try {
@@ -381,6 +381,13 @@ function taskRuns(text: string): TaskRun[] {
 export function finishedRunIds(text: string): string[] {
   return taskRuns(text)
     .filter(run => run.status !== 'running' && run.archived !== true && typeof run.session_id === 'string')
+    .map(run => run.session_id as string)
+}
+
+// Runs still going after the limit: waiting on an approval nobody will give
+export function overdueRunIds(text: string, now: number, minutes: number): string[] {
+  return taskRuns(text)
+    .filter(run => run.status === 'running' && typeof run.session_id === 'string' && typeof run.started_at === 'string' && now - Date.parse(run.started_at) > minutes * 60_000)
     .map(run => run.session_id as string)
 }
 

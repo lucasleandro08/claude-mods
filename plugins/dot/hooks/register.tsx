@@ -3,7 +3,7 @@ import type { EngineInterface, PluginOptions, Register } from 'claude-code'
 
 import type { Goal, Profile } from '../types'
 import {
-  addGoal, allowRules, answerGoal, finishedRunIds, shellCommandsAllowed, memoryStats, splitArchive, markStuck, runningRunIds, writeToolsAllowed, BRIEFING_TASK, briefingCron, briefingPrompt, DEFAULT_PROFILE, DEFAULT_RULES, dotPaths, everyMinutesCron,
+  addGoal, allowRules, answerGoal, finishedRunIds, overdueRunIds, shellCommandsAllowed, memoryStats, splitArchive, markStuck, runningRunIds, writeToolsAllowed, BRIEFING_TASK, briefingCron, briefingPrompt, DEFAULT_PROFILE, DEFAULT_RULES, dotPaths, everyMinutesCron,
   IDLE_ROUND, WATCH_CRON, WATCH_TASK, watchPrompt, newlyAnswered, newlyWaiting, parseGoals, parseRound, stampChanged, stampRound, parseProfile, removeGoal, serialize, setStatus, taskPointer, WORK_TASK, workPrompt,
 } from '../src/dot'
 import { isOn, OFF_TEXT, parseState, statePath } from '../src/shared/toggle'
@@ -183,8 +183,16 @@ async function archiveFinished($: EngineInterface) {
 
 // A round past the limit is waiting on an approval nobody will give: stop it, archive its session, free the round
 async function stopStuck($: EngineInterface, minutes: number) {
-  const current = await read($, round)
   const now = await nowMs($)
+  // The watch and the briefing have no round.json; their run's start time tells
+  for (const taskId of [WATCH_TASK, BRIEFING_TASK]) {
+    const ids = overdueRunIds((await toolText($, 'mcp__scheduled-tasks__list_task_runs', { taskId, limit: 5 })) ?? '', now, minutes)
+    for (const id of ids) {
+      await callTool($, 'mcp__ccd_session_mgmt__stop_session', { session_id: id })
+      await callTool($, 'mcp__ccd_session_mgmt__archive_session', { session_id: id, reason: 'dot run waited too long for an approval' })
+    }
+  }
+  const current = await read($, round)
   if (current.state !== 'running' || current.at <= 0 || now - current.at < minutes * 60_000) return
   const p = await paths($)
   const idle = { state: 'idle' as const, goal: current.goal, summary: `Stopped after ${minutes} min: it was waiting for an approval.`, at: now }

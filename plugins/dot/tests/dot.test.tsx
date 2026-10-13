@@ -2,7 +2,7 @@ import type { On } from 'claude-code'
 import { describe, expect, mock, test } from 'claude-code/testing'
 
 import { avatarSvg } from '../src/avatar'
-import { activityOf, addGoal, answerGoal, briefingCron, everyMinutesCron, moodOf, newlyWaiting, parseGoals, parseProfile, stampChanged, parseRound, stampRound, nextRoundAt, clock, splitLinks, writeToolsAllowed, runningRunIds, markStuck, finishedRunIds, splitArchive, memoryStats, shellCommandsAllowed } from '../src/dot'
+import { activityOf, addGoal, answerGoal, briefingCron, everyMinutesCron, moodOf, newlyWaiting, parseGoals, parseProfile, stampChanged, parseRound, stampRound, nextRoundAt, clock, splitLinks, writeToolsAllowed, runningRunIds, markStuck, finishedRunIds, splitArchive, memoryStats, shellCommandsAllowed, overdueRunIds } from '../src/dot'
 
 const HOME = '/home/dev'
 const DIR = `${HOME}/.claude-dot`
@@ -232,6 +232,7 @@ describe('dot', () => {
   test('runningRunIds and markStuck', () => {
     expect(runningRunIds('{"runs":[{"session_id":"a","status":"running"},{"session_id":"b","status":"failed"}]}')).toEqual(['a'])
     expect(runningRunIds('nope')).toEqual([])
+    expect(overdueRunIds('{"runs":[{"session_id":"a","status":"running","started_at":"2026-01-01T00:00:00Z"},{"session_id":"b","status":"running","started_at":"2026-01-01T00:09:00Z"}]}', Date.parse('2026-01-01T00:12:00Z'), 10)).toEqual(['a'])
     expect(finishedRunIds('{"runs":[{"session_id":"a","status":"running"},{"session_id":"b","status":"succeeded"},{"session_id":"c","status":"failed","archived":true}]}')).toEqual(['b'])
     const goals = [{ id: 'a', title: 't', status: 'working' as const, notes: [], question: '', createdAt: 1, updatedAt: 1 }]
     expect(markStuck(goals, 't', 10, 5)[0]?.status).toBe('waiting')
