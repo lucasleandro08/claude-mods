@@ -99,3 +99,7 @@ Two rules of the hooks runtime shape this layout: `$` can only be passed to func
 ---
 
 🇧🇷 **Em português:** mods para o Claude Code com tema Dracula. Instale com `/plugin marketplace add lucasleandro08/claude-mods` e `/plugin install mod-manager@dracula-mods`, instale os mods que quiser e ligue cada um em `/mods` (todos vêm desligados); as demais opções ficam em `/config`.
+
+### After pulling or editing mods
+
+`/reload-plugins` reads each mod from its folder, but at startup Claude Code loads the installed copy. Run `scripts/update-installed.sh` after changing a mod (with its version bumped), or a restart brings the old version back.
